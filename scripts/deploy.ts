@@ -7,12 +7,10 @@ import hre from "hardhat"
 import { verify } from "./helpers/verify"
 
 async function deploy() {
-    const [deployer] = await hre.ethers.getSigners()
-
-    console.log("Deploying contracts with the account:", deployer.address)
-
     const CharityContractFactory = await hre.ethers.getContractFactory("CharityContract")
     const CharityContract = await CharityContractFactory.deploy()
+
+    await CharityContract.deployed()
 
     console.log("Contract address:", CharityContract.address)
 

@@ -40,7 +40,9 @@ describe("CharityContract unit tests", () => {
         it("Should revert on zero donation", async () => {
             const { user, simpleContract } = await loadFixture(deployContractFixture)
 
-            await expect(simpleContract.connect(user).donate({ value: 0 })).to.be.reverted
+            await expect(
+                simpleContract.connect(user).donate({ value: 0 })
+            ).to.be.revertedWithCustomError(simpleContract, "InvalidDonation")
         })
 
         it("Should increase the total donations and add the user to the donators list", async () => {
@@ -64,6 +66,19 @@ describe("CharityContract unit tests", () => {
                 .withArgs(user.address, DONATION)
         })
 
+        it("Should receive donation", async () => {
+            const { user, simpleContract } = await loadFixture(deployContractFixture)
+
+            const receiveTx = await user.sendTransaction({
+                to: simpleContract.address,
+                value: ethers.utils.parseEther("1"),
+            })
+
+            expect(receiveTx)
+                .to.emit(simpleContract, "DonationReceived")
+                .withArgs(user.address, DONATION)
+        })
+
         it("Should accumulate donations if the same user donates again", async () => {
             const { user, simpleContract } = await loadFixture(deployContractFixture)
 
@@ -83,7 +98,7 @@ describe("CharityContract unit tests", () => {
         it("Should revert if called by a non-owner", async () => {
             const { user, simpleContract } = await loadFixture(deployContractFixture)
             await expect(simpleContract.connect(user).sendHelp(user.address, SEND_VALUE)).to.be
-                .reverted
+                .revertedWithCustomError(simpleContract, "Unauthorized")
         })
 
         it("Should revert if the contract balance is insufficient", async () => {
@@ -91,7 +106,7 @@ describe("CharityContract unit tests", () => {
             const user = ethers.Wallet.createRandom()
             await simpleContract.connect(deployer).donate({ value: DONATION })
             await expect(simpleContract.connect(deployer).sendHelp(user.address, SEND_VALUE * 3)).to
-                .be.reverted
+                .be.revertedWithCustomError(simpleContract, "InsufficientFunds")
         })
 
         it("Should transfer funds to the specified address", async () => {

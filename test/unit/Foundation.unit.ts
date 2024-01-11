@@ -62,22 +62,51 @@ describe("Foundation unit tests", () => {
 
             expect(finalBalance.sub(initialBalance)).to.equal(ethers.utils.parseEther("100"))
         })
+
+        it("Should receive donation", async () => {
+            const { user, foundation } = await loadFixture(deployContractFixture)
+
+            const receiveTx = await user.sendTransaction({
+                to: foundation.address,
+                value: ethers.utils.parseEther("1"),
+            })
+
+            expect(receiveTx)
+                .to.emit(foundation, "DonationReceived")
+                .withArgs(user.address, DONATION)
+        })
     })
 
     describe("Donate", () => {
         it("Should revert on zero donation", async () => {
             const { user, foundation } = await loadFixture(deployContractFixture)
-            await expect(foundation.connect(user).donate({ value: 0 })).to.be.reverted
+            await expect(
+                foundation.connect(user).donate({ value: 0 })
+            ).to.be.revertedWithCustomError(foundation, "InvalidDonation")
         })
 
         it("Should add donation information", async () => {
-            const { deployer, user, foundation } = await loadFixture(deployContractFixture)
+            const { deployer, foundation } = await loadFixture(deployContractFixture)
             await foundation.connect(deployer).donate({ value: ethers.utils.parseEther("1") })
             const donatorAddresses = await foundation.getDonators()
             expect(donatorAddresses).to.eql([deployer.address])
 
             const totalDonations = await foundation.getSumOfDonations()
             expect(totalDonations).to.equal(ethers.utils.parseEther("1"))
+        })
+
+        it("Should accumulate donations if the same user donates again", async () => {
+            const { user, foundation } = await loadFixture(deployContractFixture)
+
+            await foundation.connect(user).donate({ value: DONATION })
+            await foundation.connect(user).donate({ value: DONATION })
+
+            const totalDonations = await foundation.getSumOfDonations()
+            expect(totalDonations).to.equal(DONATION * 2)
+
+            const donators = await foundation.getDonators()
+            expect(donators.length).to.equal(1)
+            expect(donators[0]).to.equal(user.address)
         })
     })
 
@@ -90,10 +119,10 @@ describe("Foundation unit tests", () => {
         })
 
         it("Should revert if the contract balance is insufficient", async () => {
-            const { deployer, user, foundation } = await loadFixture(deployContractFixture)
+            const { deployer, foundation } = await loadFixture(deployContractFixture)
             await expect(
                 foundation.connect(deployer).sendFundsToReceiver(ethers.utils.parseEther("1"))
-            ).to.be.reverted
+            ).to.be.revertedWithCustomError(foundation, "InsufficientFunds")
         })
 
         it("Should transfer funds to the specified address", async () => {

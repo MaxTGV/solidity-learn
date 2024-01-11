@@ -14,5 +14,3 @@ export type { Foundation } from "./contracts/Foundation";
 export { Foundation__factory } from "./factories/contracts/Foundation__factory";
 export type { FundManager } from "./contracts/FundManager";
 export { FundManager__factory } from "./factories/contracts/FundManager__factory";
-export type { HelloWorldContract } from "./contracts/HelloWorldContract";
-export { HelloWorldContract__factory } from "./factories/contracts/HelloWorldContract__factory";

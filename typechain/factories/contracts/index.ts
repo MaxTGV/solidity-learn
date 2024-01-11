@@ -4,4 +4,3 @@
 export * as charitySol from "./Charity.sol";
 export { Foundation__factory } from "./Foundation__factory";
 export { FundManager__factory } from "./FundManager__factory";
-export { HelloWorldContract__factory } from "./HelloWorldContract__factory";

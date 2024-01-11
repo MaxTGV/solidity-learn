@@ -7,7 +7,7 @@ contract FundManager {
     uint256 public numberOfFoundationsCreated;
     mapping(address foundation => address owner) public ownersOfFunds;
 
-    // @notice Donation Tracking Event
+    /// @notice Donation Tracking Event
     event FoundationCreated(
         address indexed foundationAddress,
         address indexed owner,
@@ -15,37 +15,37 @@ contract FundManager {
         uint amount
     );
 
-    // @notice Event to track the transfer of funds to the final recipient's address
+    /// @notice Event to track the transfer of funds to the final recipient's address
     event FundsTransferred(
         address indexed foundationAddress,
         address indexed receiver,
         uint amount
     );
 
-    // @notice Custom error to check for null value
+    /// @notice Custom error to check for null value
     error InvalidValue();
 
-    // @notice Custom bug to check the rights of the fund owner
+    /// @notice Custom bug to check the rights of the fund owner
     error Unauthorized();
 
-    // @notice Custom bug to check for insufficient funds on a contract
+    /// @notice Custom bug to check for insufficient funds on a contract
     error InsufficientFunds();
 
-    // @notice Function to create a new charitable foundation.
+    /// @notice Function to create a new charitable foundation.
     function createFoundation(
         address donationReceiver,
         string memory description
     ) external payable {
-        // @notice Deploy a new Foundation
+        /// @notice Deploy a new Foundation
         Foundation newFoundation = new Foundation{value: msg.value}(donationReceiver, description);
 
-        // @notice Write the address of the fund creator in the mapping
+        /// @notice Write the address of the fund creator in the mapping
         ownersOfFunds[address(newFoundation)] = msg.sender;
 
-        // @notice Increase the number of funds created
+        /// @notice Increase the number of funds created
         numberOfFoundationsCreated++;
 
-        // @notice Start event
+        /// @notice Start event
         emit FoundationCreated(address(newFoundation), msg.sender, description, msg.value);
     }
 
@@ -54,18 +54,13 @@ contract FundManager {
             revert Unauthorized();
         }
 
-        // @notice Getting an instance Foundation
+        /// @notice Getting an instance Foundation
         Foundation foundation = Foundation(foundationAddress);
 
-        // @notice Checking the sufficiency of funds on the contract
-        if (amount > address(this).balance) {
-            revert InsufficientFunds();
-        }
-
-        // @notice Call the sendFundsToReceiver function on the fund contract
+        /// @notice Call the sendFundsToReceiver function on the fund contract
         foundation.sendFundsToReceiver(amount);
 
-        // @notice Start event
+        /// @notice Start event
         emit FundsTransferred(foundationAddress, foundation.donationsReceiver(), amount);
     }
 }

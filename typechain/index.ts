@@ -10,6 +10,8 @@ export type { Ownable } from "./@openzeppelin/contracts/access/Ownable";
 export { Ownable__factory } from "./factories/@openzeppelin/contracts/access/Ownable__factory";
 export type { CharityContract } from "./contracts/Charity.sol/CharityContract";
 export { CharityContract__factory } from "./factories/contracts/Charity.sol/CharityContract__factory";
+export type { ERC20 } from "./contracts/ERC20";
+export { ERC20__factory } from "./factories/contracts/ERC20__factory";
 export type { Foundation } from "./contracts/Foundation";
 export { Foundation__factory } from "./factories/contracts/Foundation__factory";
 export type { FundManager } from "./contracts/FundManager";

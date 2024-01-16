@@ -88,6 +88,9 @@ contract ERC20 {
     /// @notice The function transfers tokens from the from address to the to address. That is, change the balances of from and to addresses by amount.
     function transferFrom(address from, address to, uint256 amount) public returns (bool) {
         _transfer(from, to, amount, true);
+
+        _allowed[from][to] = _allowed[from][to] - amount;
+
         return true;
     }
 

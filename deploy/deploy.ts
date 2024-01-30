@@ -5,7 +5,7 @@ import { verify } from "../scripts/helpers/verify"
 const deployERC20: DeployFunction = async () => {
     const { deploy, log } = deployments
     const { deployer } = await getNamedAccounts()
-    const args = ["Burlan", "BRL", 18, 1000000, deployer]
+    const args = ["Tuzan", "TUZ", 18, 100000000, deployer]
 
     log(`ERC20 is deploying...`)
     const ERC20Contract = await deploy(`ERC20`, {

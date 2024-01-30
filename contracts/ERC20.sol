@@ -169,10 +169,6 @@ contract ERC20 {
 
     /// @notice The function burns tokens - decreases the value of totalSupply and the balance of the address account by the amount. Can be called only by the owner of the contract.
     function _transfer(address from, address to, uint256 amount, bool checkedAllowed) internal {
-        if (msg.sender != _owner) {
-            revert MintOwnerOnly();
-        }
-
         if (to == address(0)) {
             revert TransferToZeroAddress();
         }

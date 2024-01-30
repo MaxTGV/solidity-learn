@@ -21,7 +21,7 @@ const POLYGON_MUMBAI_RPC_URL =
 const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL
 const PRIVATE_KEY = process.env.PRIVATE_KEY
 // optional
-const MNEMONIC = process.env.MNEMONIC || "Your mnemonic"
+// const MNEMONIC = process.env.MNEMONIC || "Your mnemonic"
 const FORKING_BLOCK_NUMBER = process.env.FORKING_BLOCK_NUMBER
 
 // Your API key for Etherscan, obtain one at https://etherscan.io/
@@ -34,11 +34,11 @@ const config: HardhatUserConfig = {
         hardhat: {
             hardfork: "merge",
             // If you want to do some forking set `enabled` to true
-            // forking: {
-            //     url: MAINNET_RPC_URL,
-            //     blockNumber: Number(FORKING_BLOCK_NUMBER),
-            //     enabled: false,
-            // },
+            forking: {
+                url: MAINNET_RPC_URL,
+                // blockNumber: Number(FORKING_BLOCK_NUMBER),
+                enabled: true,
+            },
             chainId: 31337,
         },
         localhost: {

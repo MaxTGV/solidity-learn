@@ -3,6 +3,7 @@
 /* eslint-disable */
 import type * as charitySol from "./Charity.sol";
 export type { charitySol };
+export type { DexAdapter } from "./DexAdapter";
 export type { ERC20 } from "./ERC20";
 export type { Foundation } from "./Foundation";
 export type { FundManager } from "./FundManager";

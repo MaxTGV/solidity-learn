@@ -166,13 +166,43 @@ export interface DexAdapterInterface extends utils.Interface {
   decodeFunctionResult(functionFragment: "swapRouter", data: BytesLike): Result;
 
   events: {
+    "FeesCollected(uint256,uint256)": EventFragment;
+    "LiquidityIncreased(uint128,uint256,uint256)": EventFragment;
     "PoolCreated(address,address,address)": EventFragment;
     "PositionMinted(uint256,address,address,address,uint128)": EventFragment;
+    "SwapSuccess()": EventFragment;
   };
 
+  getEvent(nameOrSignatureOrTopic: "FeesCollected"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "LiquidityIncreased"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "PoolCreated"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "PositionMinted"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "SwapSuccess"): EventFragment;
 }
+
+export interface FeesCollectedEventObject {
+  amount0: BigNumber;
+  amount1: BigNumber;
+}
+export type FeesCollectedEvent = TypedEvent<
+  [BigNumber, BigNumber],
+  FeesCollectedEventObject
+>;
+
+export type FeesCollectedEventFilter = TypedEventFilter<FeesCollectedEvent>;
+
+export interface LiquidityIncreasedEventObject {
+  liquidity: BigNumber;
+  amount0: BigNumber;
+  amount1: BigNumber;
+}
+export type LiquidityIncreasedEvent = TypedEvent<
+  [BigNumber, BigNumber, BigNumber],
+  LiquidityIncreasedEventObject
+>;
+
+export type LiquidityIncreasedEventFilter =
+  TypedEventFilter<LiquidityIncreasedEvent>;
 
 export interface PoolCreatedEventObject {
   tokenA: string;
@@ -199,6 +229,11 @@ export type PositionMintedEvent = TypedEvent<
 >;
 
 export type PositionMintedEventFilter = TypedEventFilter<PositionMintedEvent>;
+
+export interface SwapSuccessEventObject {}
+export type SwapSuccessEvent = TypedEvent<[], SwapSuccessEventObject>;
+
+export type SwapSuccessEventFilter = TypedEventFilter<SwapSuccessEvent>;
 
 export interface DexAdapter extends BaseContract {
   connect(signerOrProvider: Signer | Provider | string): this;
@@ -473,6 +508,23 @@ export interface DexAdapter extends BaseContract {
   };
 
   filters: {
+    "FeesCollected(uint256,uint256)"(
+      amount0?: null,
+      amount1?: null
+    ): FeesCollectedEventFilter;
+    FeesCollected(amount0?: null, amount1?: null): FeesCollectedEventFilter;
+
+    "LiquidityIncreased(uint128,uint256,uint256)"(
+      liquidity?: null,
+      amount0?: null,
+      amount1?: null
+    ): LiquidityIncreasedEventFilter;
+    LiquidityIncreased(
+      liquidity?: null,
+      amount0?: null,
+      amount1?: null
+    ): LiquidityIncreasedEventFilter;
+
     "PoolCreated(address,address,address)"(
       tokenA?: PromiseOrValue<string> | null,
       tokenB?: PromiseOrValue<string> | null,
@@ -498,6 +550,9 @@ export interface DexAdapter extends BaseContract {
       token1?: null,
       liquidity?: null
     ): PositionMintedEventFilter;
+
+    "SwapSuccess()"(): SwapSuccessEventFilter;
+    SwapSuccess(): SwapSuccessEventFilter;
   };
 
   estimateGas: {

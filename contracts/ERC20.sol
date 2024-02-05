@@ -89,7 +89,7 @@ contract ERC20 {
     function transferFrom(address from, address to, uint256 amount) public returns (bool) {
         _transfer(from, to, amount, true);
 
-        _allowed[from][to] = _allowed[from][to] - amount;
+        _allowed[from][msg.sender] -= amount;
 
         return true;
     }
@@ -104,7 +104,7 @@ contract ERC20 {
             revert NotApproveAmount();
         }
 
-        _allowed[msg.sender][spender] = _allowed[msg.sender][spender] + addedValue;
+        _allowed[msg.sender][spender] += addedValue;
 
         emit Approval(msg.sender, spender, _allowed[msg.sender][spender]);
         return true;
@@ -124,7 +124,7 @@ contract ERC20 {
             revert AmountExceedsApproveBalance();
         }
 
-        _allowed[msg.sender][spender] = _allowed[msg.sender][spender] - subtractedValue;
+        _allowed[msg.sender][spender] -= subtractedValue;
         emit Approval(msg.sender, spender, _allowed[msg.sender][spender]);
         return true;
     }
@@ -173,11 +173,11 @@ contract ERC20 {
             revert TransferToZeroAddress();
         }
 
-        if (amount >= _balances[from]) {
+        if (amount > _balances[from]) {
             revert TransferAmountExceedsBalance();
         }
 
-        if (checkedAllowed && amount > _allowed[from][to]) {
+        if (checkedAllowed && amount > _allowed[from][msg.sender]) {
             revert AmountExceedsApproveBalance();
         }
 

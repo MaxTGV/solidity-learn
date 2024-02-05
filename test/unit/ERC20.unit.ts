@@ -73,7 +73,7 @@ describe("ERC20 unit tests", () => {
         it("Should transfer tokens from one account to another successfully", async () => {
             const { user, owner, tokenByERC20 } = await deployContractFixture();
 
-            await tokenByERC20.connect(owner).approve(user.address, 500);
+            await tokenByERC20.connect(user).approve(user.address, 1000);
 
             await tokenByERC20.connect(owner).transferFrom(owner.address, user.address, 500);
 

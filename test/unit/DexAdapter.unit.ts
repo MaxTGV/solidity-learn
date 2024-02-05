@@ -1,7 +1,10 @@
 import { ethers } from "hardhat";
 import { expect } from "chai";
 import bn from "bignumber.js";
-import { BigNumberish, BigNumber, constants, utils } from "ethers";
+import { BigNumberish, BigNumber, constants, utils, ContractTransaction } from "ethers";
+import { DexAdapter, ERC20 } from "../../typechain";
+import { time } from "@nomicfoundation/hardhat-network-helpers";
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 const POSITION_MANAGER = "0xC36442b4a4522E871399CD717aBDD847Ab11FE88";
 const SWAP_ROUTER = "0xE592427A0AEce92De3Edee1F18E0157C05861564";
@@ -20,72 +23,76 @@ export function encodePriceSqrt(reserve1: BigNumberish, reserve0: BigNumberish):
     );
 }
 
-// // Функция для создания пула и добавления ликвидности
-// async function createPoolAndMintPosition(
-//     dexAdapter: DexAdapter,
-//     user: SignerWithAddress,
-//     brlToken: ERC20,
-//     tuzToken: ERC20
-// ) {
-//     // Создание пула
-//     const fee = 500;
-//     const sqrtPriceX96 = encodePriceSqrt(utils.parseUnits("1", 18), utils.parseUnits("1", 18));
-//     const [sortedTokenA, sortedTokenB] = await dexAdapter._sortTokens(
-//         brlToken.address,
-//         tuzToken.address
-//     );
-//     await dexAdapter.connect(user).createPool(sortedTokenA, sortedTokenB, fee, sqrtPriceX96);
+// Функция для создания пула и добавления ликвидности
+async function createPoolAndMintPosition(
+    dexAdapter: DexAdapter,
+    user: SignerWithAddress,
+    brlToken: ERC20,
+    tuzToken: ERC20
+) {
+    const tokenA = brlToken.address;
+    const tokenB = tuzToken.address;
+    const fee = 500;
+    const amount0ToMint = ethers.utils.parseEther("100");
+    const amount1ToMint = ethers.utils.parseEther("100");
+    const minTick = -885000;
+    const maxTick = -minTick;
+    const sqrtPriceX96 = encodePriceSqrt(1, 1);
 
-//     // Добавление ликвидности
-//     const amount0ToMint = utils.parseUnits("1000", 18);
-//     const amount1ToMint = utils.parseUnits("1000", 18);
-//     const minTick = -887220;
-//     const maxTick = 887220;
-//     const tx = await dexAdapter
-//         .connect(user)
-//         .mintNewPosition(
-//             sortedTokenA,
-//             sortedTokenB,
-//             fee,
-//             amount0ToMint,
-//             amount1ToMint,
-//             minTick,
-//             maxTick
-//         );
-//     const receipt = await tx.wait();
-//     const tokenId = receipt?.events && receipt?.events[0]?.args?.tokenId;
+    const newPool = await dexAdapter.connect(user).createPool(tokenA, tokenB, fee, sqrtPriceX96);
+    const poolResult = await newPool.wait();
+    const poolCreatedEvent = poolResult.events?.find((event: any) => event.event === "PoolCreated");
 
-//     return { tokenId };
-// }
+    const pairAddress = poolCreatedEvent?.args?.pair;
 
-// // Функция для выполнения свопов
-// async function performSwaps(
-//     dexAdapter: DexAdapter,
-//     user: SignerWithAddress,
-//     brlToken: ERC20,
-//     tuzToken: ERC20
-// ) {
-//     const amountIn = utils.parseUnits("100", 18);
-//     const amountOutMinimum = 1;
-//     const path = [brlToken.address, tuzToken.address];
-//     const sqrtPriceX96 = encodePriceSqrt(utils.parseUnits("1", 18), utils.parseUnits("1", 18));
+    await brlToken.approve(dexAdapter.address, ethers.utils.parseEther("900"));
+    await tuzToken.approve(dexAdapter.address, ethers.utils.parseEther("900"));
 
-//     // Получаем адрес пула
-//     const poolAddress = await dexAdapter.createPool(
-//         brlToken.address,
-//         tuzToken.address,
-//         500,
-//         sqrtPriceX96
-//     );
-//     expect(poolAddress).to.not.equal(constants.AddressZero);
+    const newMint = await dexAdapter
+        .connect(user)
+        .mintNewPosition(tokenA, tokenB, fee, amount0ToMint, amount1ToMint, minTick, maxTick);
 
-//     // Выполняем своп
-//     await brlToken.connect(user).approve(dexAdapter.address, amountIn);
-//     // const tx = await dexAdapter
-//     //     .connect(user)
-//     //     .swapExactInput(brlToken.address, amountIn, amountOutMinimum, path);
-//     // await tx.wait();
-// }
+    const mintResult = await newMint.wait();
+    const poolMintedEvent = mintResult.events?.find(
+        (event: any) => event.event === "PositionMinted"
+    );
+    const tokenId = poolMintedEvent?.args?.tokenId;
+
+    return { tokenId, pairAddress };
+}
+
+// Функция для выполнения свопов
+async function performSwaps(
+    dexAdapter: DexAdapter,
+    user: SignerWithAddress,
+    brlToken: ERC20,
+    tuzToken: ERC20
+) {
+    const swaps = [
+        {
+            tokenIn: tuzToken.address,
+            amountIn: ethers.utils.parseEther("500"),
+            amountOutMinimum: 0,
+            path: [tuzToken.address, 500, brlToken.address],
+        },
+        // {
+        //     tokenIn: brlToken.address,
+        //     amountIn: ethers.utils.parseEther("50"),
+        //     amountOutMinimum: 0,
+        //     path: [brlToken.address, 500, tuzToken.address],
+        // },
+    ];
+
+    for (const swap of swaps) {
+        const path = ethers.utils.solidityPack(["address", "uint24", "address"], [...swap.path]);
+
+        const tx = await dexAdapter
+            .connect(user)
+            .swapExactInput(swap.tokenIn, swap.amountIn, swap.amountOutMinimum, path);
+
+        await tx.wait();
+    }
+}
 
 describe("DexAdapter unit tests", () => {
     const deployContractFixture = async () => {
@@ -136,10 +143,7 @@ describe("DexAdapter unit tests", () => {
             const tokenA = brlToken.address;
             const tokenB = brlToken.address;
             const fee = 500;
-            const sqrtPriceX96 = encodePriceSqrt(
-                utils.parseUnits("1", 18),
-                utils.parseUnits("1", 18)
-            );
+            const sqrtPriceX96 = encodePriceSqrt(1, 1);
 
             await expect(
                 dexAdapter.connect(user).createPool(tokenA, tokenB, fee, sqrtPriceX96)
@@ -152,10 +156,7 @@ describe("DexAdapter unit tests", () => {
             const tokenA = brlToken.address;
             const tokenB = brlToken.address;
             const fee = 500;
-            const sqrtPriceX96 = encodePriceSqrt(
-                utils.parseUnits("1", 18),
-                utils.parseUnits("1", 18)
-            );
+            const sqrtPriceX96 = encodePriceSqrt(1, 1);
 
             await expect(
                 dexAdapter.connect(deployer).createPool(tokenA, tokenB, fee, sqrtPriceX96)
@@ -168,10 +169,7 @@ describe("DexAdapter unit tests", () => {
             const tokenA = brlToken.address;
             const tokenB = tuzToken.address;
             const fee = 500;
-            const sqrtPriceX96 = encodePriceSqrt(
-                utils.parseUnits("1", 18),
-                utils.parseUnits("1", 18)
-            );
+            const sqrtPriceX96 = encodePriceSqrt(1, 1);
 
             const [sortedTokenA, sortedTokenB] = await dexAdapter._sortTokens(tokenA, tokenB);
 
@@ -204,132 +202,223 @@ describe("DexAdapter unit tests", () => {
         it("Should mint new position successfully", async () => {
             const { dexAdapter, deployer, brlToken, tuzToken } = await deployContractFixture();
 
-            const tokenA = brlToken.address;
-            const tokenB = tuzToken.address;
+            const { tokenId } = await createPoolAndMintPosition(
+                dexAdapter,
+                deployer,
+                brlToken,
+                tuzToken
+            );
+
+            expect(tokenId).to.not.equal(constants.AddressZero);
+        });
+    });
+
+    describe("collectAllFees", () => {
+        it("Should revert if called by non-owner", async () => {
+            const { dexAdapter, deployer, user, brlToken, tuzToken } =
+                await deployContractFixture();
+
+            const { tokenId } = await createPoolAndMintPosition(
+                dexAdapter,
+                deployer,
+                brlToken,
+                tuzToken
+            );
+
+            await expect(
+                dexAdapter.connect(user).collectAllFees(tokenId)
+            ).to.be.revertedWithCustomError(dexAdapter, "OnlyOwnerError");
+        });
+
+        it("Should collect fees successfully", async () => {
+            const { dexAdapter, deployer, brlToken, tuzToken } = await deployContractFixture();
+
+            const { tokenId } = await createPoolAndMintPosition(
+                dexAdapter,
+                deployer,
+                brlToken,
+                tuzToken
+            );
+
+            await time.increase(96000);
+            // Perform swaps to generate fees
+            await performSwaps(dexAdapter, deployer, brlToken, tuzToken);
+
+            await time.increase(96000);
+
+            // Collect fees
+            const tx = await dexAdapter.connect(deployer).collectAllFees(tokenId);
+            const receipt = await tx.wait();
+
+            // Check for emitted event
+            expect(receipt.events?.length).to.be.greaterThan(0);
+            const event = receipt.events?.[0];
+
+            console.log("event", event, event?.args);
+
+            expect(event?.event).to.equal("FeesCollected");
+
+            // Check amounts collected
+            const amount0 = event?.args?.amount0;
+            const amount1 = event?.args?.amount1;
+            expect(amount0).to.not.equal(0);
+            expect(amount1).to.not.equal(0);
+        });
+    });
+
+    describe("increaseLiquidity", () => {
+        it("Should revert if caller is not the owner of the position", async () => {
+            const { dexAdapter, deployer, user, brlToken, tuzToken } =
+                await deployContractFixture();
+
+            const { tokenId } = await createPoolAndMintPosition(
+                dexAdapter,
+                deployer,
+                brlToken,
+                tuzToken
+            );
+
+            const amountAdd0 = ethers.utils.parseEther("50");
+            const amountAdd1 = ethers.utils.parseEther("50");
+
+            await expect(
+                dexAdapter.connect(user).increaseLiquidity(tokenId, amountAdd0, amountAdd1)
+            ).to.be.revertedWithCustomError(dexAdapter, "OnlyOwnerError");
+        });
+
+        it("Should increase liquidity and update position information", async () => {
+            const { dexAdapter, deployer, brlToken, tuzToken } = await deployContractFixture();
+
+            const { tokenId } = await createPoolAndMintPosition(
+                dexAdapter,
+                deployer,
+                brlToken,
+                tuzToken
+            );
+
+            const amountAdd0 = ethers.utils.parseEther("50");
+            const amountAdd1 = ethers.utils.parseEther("50");
+
+            console.log("tokenId", tokenId, amountAdd0, amountAdd1);
+
+            const tx = await dexAdapter.increaseLiquidity(tokenId, amountAdd0, amountAdd1);
+            await tx.wait();
+
+            const position = await dexAdapter.positions(tokenId);
+            expect(position.liquidity).to.equal(amountAdd0.add(amountAdd1));
+        });
+    });
+
+    describe("decreaseLiquidity", () => {
+        it("Should revert if caller is not the owner of the position", async () => {
+            const { dexAdapter, deployer, user, brlToken, tuzToken } =
+                await deployContractFixture();
+
+            const { tokenId } = await createPoolAndMintPosition(
+                dexAdapter,
+                deployer,
+                brlToken,
+                tuzToken
+            );
+
+            await expect(
+                dexAdapter.connect(user).decreaseLiquidity(tokenId, 100)
+            ).to.be.revertedWithCustomError(dexAdapter, "OnlyOwnerError");
+        });
+
+        it("Should decrease liquidity and update position information", async () => {
+            const { dexAdapter, deployer, brlToken, tuzToken } = await deployContractFixture();
+
+            const { tokenId } = await createPoolAndMintPosition(
+                dexAdapter,
+                deployer,
+                brlToken,
+                tuzToken
+            );
+
+            const positionBefore = await dexAdapter.positions(tokenId);
+            const liquidity = ethers.utils.parseEther("50")
+            console.log("position before", positionBefore);
+
+            const tx = await dexAdapter.decreaseLiquidity(tokenId, liquidity);
+            await tx.wait();
+
+            const positionAfter = await dexAdapter.positions(tokenId);
+
+            console.log("position after", positionAfter);
+        });
+    });
+
+    describe("swapExactInput", () => {
+        it("Should revert if amount in more allowed", async () => {
+            const { dexAdapter, deployer, brlToken, tuzToken } = await deployContractFixture();
+
+            await createPoolAndMintPosition(dexAdapter, deployer, brlToken, tuzToken);
+
+            const tokenIn = brlToken.address;
+            const tokenOut = tuzToken.address;
+            const amountIn = ethers.utils.parseEther("1000");
+            const amountOutMinimum = 0;
             const fee = 500;
-            const amount0ToMint = ethers.utils.parseEther("100");
-            const amount1ToMint = ethers.utils.parseEther("100");
-            const minTick = -885000;
-            const maxTick = 885000;
-            const sqrtPriceX96 = encodePriceSqrt(1, 1);
 
-            await dexAdapter.connect(deployer).createPool(tokenA, tokenB, fee, sqrtPriceX96);
-
-            await brlToken.approve(dexAdapter.address, ethers.utils.parseEther("900"));
-            await tuzToken.approve(dexAdapter.address, ethers.utils.parseEther("900"));
-
-            console.log("brl", await brlToken.balanceOf(deployer.address));
-            console.log("tuz", await tuzToken.balanceOf(deployer.address));
-
-            console.log("brl before", await brlToken.balanceOf(dexAdapter.address));
+            const path = ethers.utils.solidityPack(
+                ["address", "uint24", "address"],
+                [tokenIn, fee, tokenOut]
+            );
 
             await expect(
                 dexAdapter
                     .connect(deployer)
-                    .mintNewPosition(
-                        tokenA,
-                        tokenB,
-                        fee,
-                        amount0ToMint,
-                        amount1ToMint,
-                        minTick,
-                        maxTick
-                    )
-            ).to.emit(dexAdapter, "PositionMinted");
+                    .swapExactInput(tokenIn, amountIn, amountOutMinimum, path)
+            ).to.be.revertedWithCustomError(dexAdapter, "InsufficientAllowanceError");
+        });
 
-            console.log("brl after", await brlToken.balanceOf(dexAdapter.address));
+        it("Should swap exact input successfully", async () => {
+            const { dexAdapter, deployer, brlToken, tuzToken } = await deployContractFixture();
+
+            await createPoolAndMintPosition(dexAdapter, deployer, brlToken, tuzToken);
+
+            const tokenIn = brlToken.address;
+            const tokenOut = tuzToken.address;
+            const amountIn = ethers.utils.parseEther("100");
+            const amountOutMinimum = 0;
+            const fee = 500;
+
+            const path = ethers.utils.solidityPack(
+                ["address", "uint24", "address"],
+                [tokenIn, fee, tokenOut]
+            );
+
+            const tx = await dexAdapter
+                .connect(deployer)
+                .swapExactInput(tokenIn, amountIn, amountOutMinimum, path);
+
+            await expect(tx).to.emit(dexAdapter, "SwapSuccess");
         });
     });
 
-    // describe("collectAllFees", () => {
-    //     it("Should revert if the caller is not the owner of the position", async () => {
-    //         const { dexAdapter, deployer, user, brlToken, tuzToken } =
-    //             await deployContractFixture();
-    //         const { tokenId } = await createPoolAndMintPosition(
-    //             dexAdapter,
-    //             deployer,
-    //             brlToken,
-    //             tuzToken
-    //         );
+    describe("swapExactOutput", () => {
+        it("Should swap exact output successfully", async () => {
+            const { dexAdapter, deployer, brlToken, tuzToken } = await deployContractFixture();
 
-    //         await expect(
-    //             dexAdapter.connect(user).collectAllFees(tokenId)
-    //         ).to.be.revertedWithCustomError(dexAdapter, "OnlyOwnerError");
-    //     });
+            await createPoolAndMintPosition(dexAdapter, deployer, brlToken, tuzToken);
 
-    //     it("Should collect fees successfully", async () => {
-    //         const { dexAdapter, deployer, user, brlToken, tuzToken } =
-    //             await deployContractFixture();
-    //         const { tokenId } = await createPoolAndMintPosition(
-    //             dexAdapter,
-    //             user,
-    //             brlToken,
-    //             tuzToken
-    //         );
+            const tokenIn = brlToken.address;
+            const tokenOut = tuzToken.address;
+            const amountOut = ethers.utils.parseEther("100");
+            const amountInMaximum = ethers.utils.parseEther("200");
+            const fee = 500;
 
-    //         // Perform swaps to generate fees
-    //         await performSwaps(dexAdapter, user, brlToken, tuzToken);
+            const path = ethers.utils.solidityPack(
+                ["address", "uint24", "address"],
+                [tokenOut, fee, tokenIn]
+            );
 
-    //         // Approve transfer of token to the contract
-    //         await brlToken.connect(user).approve(dexAdapter.address, constants.MaxUint256);
-    //         await tuzToken.connect(user).approve(dexAdapter.address, constants.MaxUint256);
+            const tx = await dexAdapter
+                .connect(deployer)
+                .swapExactOutput(tokenOut, amountOut, amountInMaximum, path);
 
-    //         // Collect fees
-    //         const tx = await dexAdapter.connect(deployer).collectAllFees(tokenId);
-    //         const receipt = await tx.wait();
-
-    //         // Check for emitted event
-    //         expect(receipt.events?.length).to.be.greaterThan(0);
-    //         const event = receipt.events?.[0];
-    //         expect(event?.event).to.equal("FeesCollected");
-
-    //         // Check amounts collected
-    //         const amount0 = event?.args?.amount0;
-    //         const amount1 = event?.args?.amount1;
-    //         expect(amount0).to.not.equal(0);
-    //         expect(amount1).to.not.equal(0);
-    //     });
-    // });
-
-    // describe("swapExactInput", () => {
-    //     it("Should swap exact input successfully", async () => {
-    //         const { dexAdapter, deployer, brlToken, tuzToken } = await deployContractFixture();
-    //         const tokenIn = brlToken.address;
-    //         const tokenOut = tuzToken.address;
-    //         const amountIn = ethers.utils.parseEther("10"); // 10 токенов входа
-    //         const amountOutMinimum = 1; // Минимальное количество токенов выхода
-    //         const fee = 3000; // Фиксированный размер сбора
-    //         const sqrtPriceX96 = encodePriceSqrt(1, 1);
-    //         const path = ethers.utils.defaultAbiCoder.encode(
-    //             ["address", "uint24", "address", "uint24", "address"],
-    //             [tokenOut, fee, tokenIn, fee, tokenOut]
-    //         );
-
-    //         await brlToken.connect(deployer).approve(dexAdapter.address, amountIn);
-    //         const tx = await dexAdapter
-    //             .connect(deployer)
-    //             .swapExactInput(tokenIn, amountIn, amountOutMinimum, path);
-    //     });
-    // });
-
-    // describe("swapExactOutput", () => {
-    //     it("Should swap exact output successfully", async () => {
-    //         const { dexAdapter, deployer, brlToken, tuzToken } = await deployContractFixture();
-    //         const tokenIn = brlToken.address;
-    //         const tokenOut = tuzToken.address;
-    //         const amountOut = ethers.utils.parseEther("10"); // 10 токенов выхода
-    //         const amountInMaximum = ethers.utils.parseEther("100"); // Максимальное количество токенов входа
-    //         const fee = 3000; // Фиксированный размер сбора
-    //         const sqrtPriceX96 = encodePriceSqrt(1, 1);
-    //         const path = ethers.utils.defaultAbiCoder.encode(
-    //             ["address", "uint24", "address", "uint24", "address"],
-    //             [tokenOut, fee, tokenIn, fee, tokenOut]
-    //         );
-
-    //         await brlToken.connect(deployer).approve(dexAdapter.address, amountInMaximum);
-    //         const tx = await dexAdapter
-    //             .connect(deployer)
-    //             .swapExactOutput(tokenIn, amountOut, amountInMaximum, path);
-    //     });
-    // });
+            await expect(tx).to.emit(dexAdapter, "SwapSuccess");
+        });
+    });
 });

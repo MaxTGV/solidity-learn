@@ -7,6 +7,7 @@ import "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.s
 import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
+import "hardhat/console.sol";
 
 contract DexAdapter {
     using FixedPoint96 for uint256;
@@ -36,6 +37,7 @@ contract DexAdapter {
     event FeesCollected(uint256 amount0, uint256 amount1);
     event SwapSuccess();
     event LiquidityIncreased(uint128 liquidity, uint256 amount0, uint256 amount1);
+    event LiquidityDecrease(uint256 amount0, uint256 amount1);
 
     error OnlyOwnerError();
     error IdenticalAddressesError();
@@ -49,6 +51,7 @@ contract DexAdapter {
         owner = msg.sender;
     }
 
+    /// @notice The function must create and initialize a liquidity pool
     function createPool(
         address token0,
         address token1,
@@ -71,6 +74,7 @@ contract DexAdapter {
         emit PoolCreated(tokenA, tokenB, pair);
     }
 
+    /// @notice The function must provide liquidity and create a new position
     function mintNewPosition(
         address token0,
         address token1,
@@ -105,10 +109,6 @@ contract DexAdapter {
 
         (tokenId, liquidity, amount0, amount1) = positionManager.mint(params);
 
-        if (tokenId == 0) {
-            revert MintFailedError();
-        }
-
         positions[tokenId] = PositionInfo({
             owner: msg.sender,
             token0: tokenA,
@@ -119,40 +119,40 @@ contract DexAdapter {
         emit PositionMinted(tokenId, msg.sender, tokenA, tokenB, liquidity);
     }
 
+    /// @notice The function should collect all accumulated funds from the interest on swaps at the
+    /// depending on your position
     function collectAllFees(uint256 tokenId) external returns (uint256 amount0, uint256 amount1) {
-        // Caller must own the ERC721 position
+        /// @dev Caller must own the ERC721 position
         if (positions[tokenId].owner != msg.sender) {
             revert OnlyOwnerError();
         }
 
-        // Set amount0Max and amount1Max to uint256.max to collect all fees
-        // Alternatively can set recipient to msg.sender and avoid another transaction in `sendToOwner`
+        /// @dev Set amount0Max and amount1Max to uint256.max to collect all fees
         INonfungiblePositionManager.CollectParams memory params = INonfungiblePositionManager
             .CollectParams({
                 tokenId: tokenId,
-                recipient: address(this),
+                recipient: positions[tokenId].owner,
                 amount0Max: type(uint128).max,
                 amount1Max: type(uint128).max
             });
 
-        // Collect fees
+        /// @dev Collect fees
         (amount0, amount1) = positionManager.collect(params);
+        console.log(amount0, amount1);
         emit FeesCollected(amount0, amount1);
-
-        // Send collected fees back to owner
-        _sendToOwner(tokenId, amount0, amount1);
     }
 
+    /// @notice The function should reduce the liquidity of the position and return funds to the owner
     function decreaseLiquidity(
         uint256 tokenId,
         uint128 liquidity
     ) external returns (uint256 amount0, uint256 amount1) {
-        // Ensure that the caller is the owner of the position
+        /// @dev Ensure that the caller is the owner of the position
         if (positions[tokenId].owner != msg.sender) {
             revert OnlyOwnerError();
         }
 
-        // Decrease liquidity
+        /// @dev Decrease liquidity
         INonfungiblePositionManager.DecreaseLiquidityParams
             memory params = INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -166,9 +166,10 @@ contract DexAdapter {
 
         positions[tokenId].liquidity -= liquidity;
 
-        _sendToOwner(tokenId, amount0, amount1);
+        emit LiquidityDecrease(amount0, amount1);
     }
 
+    /// @notice The function should increase the liquidity of the position
     function increaseLiquidity(
         uint256 tokenId,
         uint256 amountAdd0,
@@ -177,6 +178,22 @@ contract DexAdapter {
         if (positions[tokenId].owner != msg.sender) {
             revert OnlyOwnerError();
         }
+
+        TransferHelper.safeTransferFrom(
+            positions[tokenId].token0,
+            msg.sender,
+            address(this),
+            amountAdd0
+        );
+        TransferHelper.safeTransferFrom(
+            positions[tokenId].token1,
+            msg.sender,
+            address(this),
+            amountAdd1
+        );
+
+        TransferHelper.safeApprove(positions[tokenId].token0, address(positionManager), amountAdd0);
+        TransferHelper.safeApprove(positions[tokenId].token1, address(positionManager), amountAdd1);
 
         INonfungiblePositionManager.IncreaseLiquidityParams
             memory params = INonfungiblePositionManager.IncreaseLiquidityParams({
@@ -195,24 +212,23 @@ contract DexAdapter {
         emit LiquidityIncreased(liquidity, amount0, amount1);
     }
 
+    /// @notice Function performing multihop(*)/single swap with a fixed number of tokens per input
     function swapExactInput(
         address tokenIn,
         uint256 amountIn,
         uint256 amountOutMinimum,
         bytes memory path
     ) external returns (uint256 amountOut) {
-        // Проверяем, что контракт уже получил разрешение на расход токенов
+        /// @dev Check that the contract has already been authorized to spend tokens
         if (IERC20(tokenIn).allowance(msg.sender, address(this)) < amountIn) {
             revert InsufficientAllowanceError();
         }
 
-        // Передаем токены контракту
+        /// @dev Transfer tokens to the contract for swap
         TransferHelper.safeTransferFrom(tokenIn, msg.sender, address(this), amountIn);
-
-        // Передаем токены контракту для свопа
         TransferHelper.safeApprove(tokenIn, address(swapRouter), amountIn);
 
-        // Выполняем своп
+        /// @dev Performing the swap
         amountOut = swapRouter.exactInput(
             ISwapRouter.ExactInputParams({
                 path: path,
@@ -226,24 +242,23 @@ contract DexAdapter {
         emit SwapSuccess();
     }
 
+    /// @notice Function that performs multihop(*)/single swap with fixed number of tokens on output
     function swapExactOutput(
         address tokenIn,
         uint256 amountOut,
         uint256 amountInMaximum,
         bytes memory path
     ) external returns (uint256 amountIn) {
-        // Проверяем, что контракт уже получил разрешение на расход токенов
+        /// @dev Check that the contract has already been authorized to spend tokens
         if (IERC20(tokenIn).allowance(msg.sender, address(this)) < amountOut) {
             revert InsufficientAllowanceError();
         }
 
-        // Передаем токены контракту для свопа
-        TransferHelper.safeTransferFrom(tokenIn, msg.sender, address(this), amountOut);
+        /// @dev Transfer tokens to the contract for swap
+        TransferHelper.safeTransferFrom(tokenIn, msg.sender, address(this), amountInMaximum);
+        TransferHelper.safeApprove(tokenIn, address(swapRouter), amountInMaximum);
 
-        // Передаем токены контракту для свопа
-        TransferHelper.safeApprove(tokenIn, address(swapRouter), amountOut);
-
-        // Выполняем своп
+        /// @dev Performing the swap
         amountIn = swapRouter.exactOutput(
             ISwapRouter.ExactOutputParams({
                 path: path,
@@ -255,16 +270,6 @@ contract DexAdapter {
         );
 
         emit SwapSuccess();
-    }
-
-    function _sendToOwner(uint256 tokenId, uint256 amount0, uint256 amount1) internal {
-        // get owner of contract
-        address _owner = positions[tokenId].owner;
-        address token0 = positions[tokenId].token0;
-        address token1 = positions[tokenId].token1;
-        // send collected fees to owner
-        TransferHelper.safeTransfer(token0, _owner, amount0);
-        TransferHelper.safeTransfer(token1, _owner, amount1);
     }
 
     function _sortTokens(

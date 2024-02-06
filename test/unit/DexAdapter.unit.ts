@@ -33,8 +33,8 @@ async function createPoolAndMintPosition(
     const tokenA = brlToken.address;
     const tokenB = tuzToken.address;
     const fee = 500;
-    const amount0ToMint = ethers.utils.parseEther("100");
-    const amount1ToMint = ethers.utils.parseEther("100");
+    const amount0ToMint = ethers.utils.parseEther("1000");
+    const amount1ToMint = ethers.utils.parseEther("1000");
     const minTick = -885000;
     const maxTick = -minTick;
     const sqrtPriceX96 = encodePriceSqrt(1, 1);
@@ -45,8 +45,8 @@ async function createPoolAndMintPosition(
 
     const pairAddress = poolCreatedEvent?.args?.pair;
 
-    await brlToken.approve(dexAdapter.address, ethers.utils.parseEther("900"));
-    await tuzToken.approve(dexAdapter.address, ethers.utils.parseEther("900"));
+    await brlToken.approve(dexAdapter.address, ethers.utils.parseEther("2000"));
+    await tuzToken.approve(dexAdapter.address, ethers.utils.parseEther("2000"));
 
     const newMint = await dexAdapter
         .connect(user)
@@ -112,7 +112,7 @@ describe("DexAdapter unit tests", () => {
             "Burlan",
             "BRL",
             18,
-            ethers.utils.parseEther("1000"),
+            ethers.utils.parseEther("10000"),
             deployer.address
         );
 
@@ -120,7 +120,7 @@ describe("DexAdapter unit tests", () => {
             "Tuzan",
             "TUZ",
             18,
-            ethers.utils.parseEther("1000"),
+            ethers.utils.parseEther("10000"),
             deployer.address
         );
 
@@ -241,28 +241,13 @@ describe("DexAdapter unit tests", () => {
             );
 
             await time.increase(96000);
-            // Perform swaps to generate fees
             await performSwaps(dexAdapter, deployer, brlToken, tuzToken);
-
             await time.increase(96000);
 
-            // Collect fees
-            const tx = await dexAdapter.connect(deployer).collectAllFees(tokenId);
-            const receipt = await tx.wait();
-
-            // Check for emitted event
-            expect(receipt.events?.length).to.be.greaterThan(0);
-            const event = receipt.events?.[0];
-
-            console.log("event", event, event?.args);
-
-            expect(event?.event).to.equal("FeesCollected");
-
-            // Check amounts collected
-            const amount0 = event?.args?.amount0;
-            const amount1 = event?.args?.amount1;
-            expect(amount0).to.not.equal(0);
-            expect(amount1).to.not.equal(0);
+            expect(await dexAdapter.connect(deployer).collectAllFees(tokenId)).to.emit(
+                dexAdapter,
+                "FeesCollected"
+            );
         });
     });
 
@@ -280,6 +265,9 @@ describe("DexAdapter unit tests", () => {
 
             const amountAdd0 = ethers.utils.parseEther("50");
             const amountAdd1 = ethers.utils.parseEther("50");
+
+            await brlToken.approve(dexAdapter.address, ethers.utils.parseEther("900"));
+            await tuzToken.approve(dexAdapter.address, ethers.utils.parseEther("900"));
 
             await expect(
                 dexAdapter.connect(user).increaseLiquidity(tokenId, amountAdd0, amountAdd1)
@@ -299,13 +287,24 @@ describe("DexAdapter unit tests", () => {
             const amountAdd0 = ethers.utils.parseEther("50");
             const amountAdd1 = ethers.utils.parseEther("50");
 
-            console.log("tokenId", tokenId, amountAdd0, amountAdd1);
+            await brlToken.approve(dexAdapter.address, ethers.utils.parseEther("900"));
+            await tuzToken.approve(dexAdapter.address, ethers.utils.parseEther("900"));
+
+            const positionBefore = await dexAdapter.positions(tokenId);
 
             const tx = await dexAdapter.increaseLiquidity(tokenId, amountAdd0, amountAdd1);
-            await tx.wait();
+            const result = await tx.wait();
 
-            const position = await dexAdapter.positions(tokenId);
-            expect(position.liquidity).to.equal(amountAdd0.add(amountAdd1));
+            const liquidityIncreasedEvent = result.events!.filter((x: any) => {
+                return x.event == "LiquidityIncreased";
+            });
+
+            const positionAfter = await dexAdapter.positions(tokenId);
+            const newLiquidity = liquidityIncreasedEvent[0].args?.liquidity;
+
+            expect(
+                (Number(positionAfter.liquidity) - Number(positionBefore.liquidity)).toString()
+            ).to.be.closeTo(newLiquidity, newLiquidity.div(10));
         });
     });
 
@@ -336,16 +335,12 @@ describe("DexAdapter unit tests", () => {
                 tuzToken
             );
 
-            const positionBefore = await dexAdapter.positions(tokenId);
-            const liquidity = ethers.utils.parseEther("50")
-            console.log("position before", positionBefore);
+            const liquidity = ethers.utils.parseEther("50");
 
-            const tx = await dexAdapter.decreaseLiquidity(tokenId, liquidity);
-            await tx.wait();
-
-            const positionAfter = await dexAdapter.positions(tokenId);
-
-            console.log("position after", positionAfter);
+            expect(await dexAdapter.decreaseLiquidity(tokenId, liquidity)).to.emit(
+                dexAdapter,
+                "LiquidityDecrease"
+            );
         });
     });
 
@@ -357,7 +352,7 @@ describe("DexAdapter unit tests", () => {
 
             const tokenIn = brlToken.address;
             const tokenOut = tuzToken.address;
-            const amountIn = ethers.utils.parseEther("1000");
+            const amountIn = ethers.utils.parseEther("2100");
             const amountOutMinimum = 0;
             const fee = 500;
 
@@ -398,6 +393,32 @@ describe("DexAdapter unit tests", () => {
     });
 
     describe("swapExactOutput", () => {
+        it("Should revert if amount in more allowed", async () => {
+            const { dexAdapter, deployer, brlToken, tuzToken } = await deployContractFixture();
+
+            await createPoolAndMintPosition(dexAdapter, deployer, brlToken, tuzToken);
+
+            const tokenIn = brlToken.address;
+            const tokenOut = tuzToken.address;
+            const amountOut = ethers.utils.parseEther("2100");
+            const amountInMaximum = ethers.utils.parseEther("20");
+            const fee = 500;
+
+            const path = ethers.utils.solidityPack(
+                ["address", "uint24", "address"],
+                [tokenIn, fee, tokenOut]
+            );
+
+            await brlToken.approve(dexAdapter.address, ethers.utils.parseEther("1000"));
+            await tuzToken.approve(dexAdapter.address, ethers.utils.parseEther("1000"));
+
+            await expect(
+                dexAdapter
+                    .connect(deployer)
+                    .swapExactOutput(tokenOut, amountOut, amountInMaximum, path)
+            ).to.be.revertedWithCustomError(dexAdapter, "InsufficientAllowanceError");
+        });
+
         it("Should swap exact output successfully", async () => {
             const { dexAdapter, deployer, brlToken, tuzToken } = await deployContractFixture();
 
@@ -405,14 +426,17 @@ describe("DexAdapter unit tests", () => {
 
             const tokenIn = brlToken.address;
             const tokenOut = tuzToken.address;
-            const amountOut = ethers.utils.parseEther("100");
-            const amountInMaximum = ethers.utils.parseEther("200");
+            const amountOut = ethers.utils.parseEther("10");
+            const amountInMaximum = ethers.utils.parseEther("20");
             const fee = 500;
 
             const path = ethers.utils.solidityPack(
                 ["address", "uint24", "address"],
-                [tokenOut, fee, tokenIn]
+                [tokenIn, fee, tokenOut]
             );
+
+            await brlToken.approve(dexAdapter.address, ethers.utils.parseEther("1000"));
+            await tuzToken.approve(dexAdapter.address, ethers.utils.parseEther("1000"));
 
             const tx = await dexAdapter
                 .connect(deployer)

@@ -167,6 +167,7 @@ export interface DexAdapterInterface extends utils.Interface {
 
   events: {
     "FeesCollected(uint256,uint256)": EventFragment;
+    "LiquidityDecrease(uint256,uint256)": EventFragment;
     "LiquidityIncreased(uint128,uint256,uint256)": EventFragment;
     "PoolCreated(address,address,address)": EventFragment;
     "PositionMinted(uint256,address,address,address,uint128)": EventFragment;
@@ -174,6 +175,7 @@ export interface DexAdapterInterface extends utils.Interface {
   };
 
   getEvent(nameOrSignatureOrTopic: "FeesCollected"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "LiquidityDecrease"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "LiquidityIncreased"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "PoolCreated"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "PositionMinted"): EventFragment;
@@ -190,6 +192,18 @@ export type FeesCollectedEvent = TypedEvent<
 >;
 
 export type FeesCollectedEventFilter = TypedEventFilter<FeesCollectedEvent>;
+
+export interface LiquidityDecreaseEventObject {
+  amount0: BigNumber;
+  amount1: BigNumber;
+}
+export type LiquidityDecreaseEvent = TypedEvent<
+  [BigNumber, BigNumber],
+  LiquidityDecreaseEventObject
+>;
+
+export type LiquidityDecreaseEventFilter =
+  TypedEventFilter<LiquidityDecreaseEvent>;
 
 export interface LiquidityIncreasedEventObject {
   liquidity: BigNumber;
@@ -513,6 +527,15 @@ export interface DexAdapter extends BaseContract {
       amount1?: null
     ): FeesCollectedEventFilter;
     FeesCollected(amount0?: null, amount1?: null): FeesCollectedEventFilter;
+
+    "LiquidityDecrease(uint256,uint256)"(
+      amount0?: null,
+      amount1?: null
+    ): LiquidityDecreaseEventFilter;
+    LiquidityDecrease(
+      amount0?: null,
+      amount1?: null
+    ): LiquidityDecreaseEventFilter;
 
     "LiquidityIncreased(uint128,uint256,uint256)"(
       liquidity?: null,

@@ -23,7 +23,6 @@ export function encodePriceSqrt(reserve1: BigNumberish, reserve0: BigNumberish):
     );
 }
 
-// Функция для создания пула и добавления ликвидности
 async function createPoolAndMintPosition(
     dexAdapter: DexAdapter,
     user: SignerWithAddress,
@@ -61,7 +60,6 @@ async function createPoolAndMintPosition(
     return { tokenId, pairAddress };
 }
 
-// Функция для выполнения свопов
 async function performSwaps(
     dexAdapter: DexAdapter,
     user: SignerWithAddress,
@@ -75,12 +73,6 @@ async function performSwaps(
             amountOutMinimum: 0,
             path: [tuzToken.address, 500, brlToken.address],
         },
-        // {
-        //     tokenIn: brlToken.address,
-        //     amountIn: ethers.utils.parseEther("50"),
-        //     amountOutMinimum: 0,
-        //     path: [brlToken.address, 500, tuzToken.address],
-        // },
     ];
 
     for (const swap of swaps) {

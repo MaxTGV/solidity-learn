@@ -138,7 +138,7 @@ contract DexAdapter {
 
         /// @dev Collect fees
         (amount0, amount1) = positionManager.collect(params);
-        console.log(amount0, amount1);
+
         emit FeesCollected(amount0, amount1);
     }
 

@@ -48,3 +48,5 @@ export type { FundManager } from "./contracts/FundManager";
 export { FundManager__factory } from "./factories/contracts/FundManager__factory";
 export type { Staking } from "./contracts/Staking";
 export { Staking__factory } from "./factories/contracts/Staking__factory";
+export type { Vesting } from "./contracts/Vesting";
+export { Vesting__factory } from "./factories/contracts/Vesting__factory";

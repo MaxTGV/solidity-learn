@@ -14,7 +14,8 @@ contract Vesting is Ownable {
 
     /// @notice A structure for storing information about the rights to receive tokens
     struct VestingInfo {
-        uint256 amount;
+        uint256 totalAmount;
+        uint256 withdrawAmount;
         bool distributed;
     }
 
@@ -62,7 +63,7 @@ contract Vesting is Ownable {
             revert RightsAlreadyDistributed();
         }
 
-        vestingInfo[account].amount = amount;
+        vestingInfo[account].totalAmount = amount;
         vestingInfo[account].distributed = true;
 
         emit RightsDistributed(account, amount);
@@ -74,12 +75,15 @@ contract Vesting is Ownable {
             revert VestingNotStarted();
         }
 
-        if (vestingInfo[_address].amount == 0) {
+        if (vestingInfo[_address].totalAmount == 0) {
             revert NoRightsDistributed();
         }
 
         uint256 elapsedMonths = (block.timestamp - vestingStartTime) / 30 days;
-        uint256 availableAmount = (vestingInfo[_address].amount *
+        uint256 totalAmount = vestingInfo[_address].totalAmount;
+        uint256 withdrawAmount = vestingInfo[_address].withdrawAmount;
+
+        uint256 availableAmount = ((totalAmount - withdrawAmount) *
             releasePercentageByMonth[elapsedMonths + 1]) / 100;
 
         return availableAmount;
@@ -90,7 +94,7 @@ contract Vesting is Ownable {
         address account = msg.sender;
         uint256 availableAmount = getAvailableAmount(account);
 
-        vestingInfo[account].amount -= availableAmount;
+        vestingInfo[account].withdrawAmount += availableAmount;
 
         TransferHelper.safeTransfer(address(vestingToken), msg.sender, availableAmount);
 

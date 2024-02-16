@@ -271,7 +271,11 @@ export interface Vesting extends BaseContract {
       arg0: PromiseOrValue<string>,
       overrides?: CallOverrides
     ): Promise<
-      [BigNumber, boolean] & { amount: BigNumber; distributed: boolean }
+      [BigNumber, BigNumber, boolean] & {
+        totalAmount: BigNumber;
+        withdrawAmount: BigNumber;
+        distributed: boolean;
+      }
     >;
 
     vestingStartTime(overrides?: CallOverrides): Promise<[BigNumber]>;
@@ -320,7 +324,11 @@ export interface Vesting extends BaseContract {
     arg0: PromiseOrValue<string>,
     overrides?: CallOverrides
   ): Promise<
-    [BigNumber, boolean] & { amount: BigNumber; distributed: boolean }
+    [BigNumber, BigNumber, boolean] & {
+      totalAmount: BigNumber;
+      withdrawAmount: BigNumber;
+      distributed: boolean;
+    }
   >;
 
   vestingStartTime(overrides?: CallOverrides): Promise<BigNumber>;
@@ -367,7 +375,11 @@ export interface Vesting extends BaseContract {
       arg0: PromiseOrValue<string>,
       overrides?: CallOverrides
     ): Promise<
-      [BigNumber, boolean] & { amount: BigNumber; distributed: boolean }
+      [BigNumber, BigNumber, boolean] & {
+        totalAmount: BigNumber;
+        withdrawAmount: BigNumber;
+        distributed: boolean;
+      }
     >;
 
     vestingStartTime(overrides?: CallOverrides): Promise<BigNumber>;

@@ -30,6 +30,14 @@ describe("Vesting", () => {
     };
 
     describe("DistributeRights", () => {
+        it("Should revert if called by non-owner", async () => {
+            const { vestingContract, user } = await deployContractFixture();
+
+            await expect(
+                vestingContract.connect(user).distributeRights(user.address, 100)
+            ).to.be.revertedWith("Ownable: caller is not the owner");
+        });
+
         it("Should revert if called after vesting period is over", async () => {
             const { vestingContract, deployer } = await deployContractFixture();
 

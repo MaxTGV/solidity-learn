@@ -57,7 +57,7 @@ contract DAO is AccessControl {
         tokenAddress = _tokenAddress;
     }
 
-    // Функция для добавления нового предложения
+    /// @notice The function of creating a proposal (proposal) that will be considered for acceptance by all the participants of the dao
     function addProposal(
         address recipient,
         string memory description,
@@ -80,21 +80,20 @@ contract DAO is AccessControl {
         emit ProposalAdded(proposals.length - 1, recipient, description);
     }
 
+    /// @notice  Function to deposit(freeze) tokens, it should store information about the frozen tokens
     function deposit(uint256 amount) external {
         if (amount == 0) {
             revert ZeroAmountError();
         }
 
-        // Transfer tokens from sender to contract using TransferHelper
         TransferHelper.safeTransferFrom(tokenAddress, msg.sender, address(this), amount);
 
-        // Store deposit information
         deposits[msg.sender] = Deposit(amount, block.timestamp);
 
-        // Emit event for the deposit made
         emit DepositMade(msg.sender, amount);
     }
 
+    /// @notice Function outputting tokens deposited by user to his address
     function withdraw() external {
         if (voted[msg.sender]) {
             revert VotingInProgress();
@@ -112,13 +111,12 @@ contract DAO is AccessControl {
         emit Withdrawal(msg.sender, amountToWithdraw);
     }
 
+    /// @notice A function that allows the user to vote for or against a proposal. proposals
     function vote(uint256 id, bool support) external {
-        // 1. Проверяем, хватает ли у пользователя голосов
         if (deposits[msg.sender].amount == 0) {
             revert InsufficientVotes();
         }
 
-        // 2. Проверяем, не закончилось ли голосование
         if (proposals[id].executed) {
             revert VotingEnded();
         }
@@ -129,7 +127,6 @@ contract DAO is AccessControl {
 
         voted[msg.sender] = true;
 
-        // Обновляем счетчик голосов
         if (support) {
             proposals[id].votesFor += deposits[msg.sender].amount;
         } else {
@@ -139,6 +136,7 @@ contract DAO is AccessControl {
         emit ProposalVoted(id, msg.sender, support);
     }
 
+    /// @notice The function that finalizes the vote and executes the call if the vote ended with the adoption of the proposal
     function finishProposal(uint256 id) external {
         if (block.timestamp < proposalEndTime[id]) {
             revert ProposalNotEnded();
@@ -171,6 +169,7 @@ contract DAO is AccessControl {
         emit ProposalExecuted(id, proposal.recipient, proposal.description);
     }
 
+    /// @notice Function for changing the minimum quorum value
     function setMinimalQuorum(uint256 newQuorum) external onlyRole(ADMIN_ROLE) {
         if (newQuorum == 0 || newQuorum > 100) {
             revert InvalidQuorumPercentage();
@@ -178,10 +177,12 @@ contract DAO is AccessControl {
         quorumPercentage = newQuorum;
     }
 
+    /// @notice Function for changing the voice duration value
     function setDebatingPeriod(uint256 newPeriod) external onlyRole(ADMIN_ROLE) {
         debatingPeriod = newPeriod;
     }
 
+    /// @notice Auxiliary function for testing
     function setProposalSuccess(uint256 id, bool result) external {
         Proposal storage proposal = proposals[id];
         proposal.executed = result;

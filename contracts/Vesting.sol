@@ -83,10 +83,9 @@ contract Vesting is Ownable {
         uint256 totalAmount = vestingInfo[_address].totalAmount;
         uint256 withdrawAmount = vestingInfo[_address].withdrawAmount;
 
-        uint256 availableAmount = ((totalAmount - withdrawAmount) *
-            releasePercentageByMonth[elapsedMonths + 1]) / 100;
+        uint256 availableAmount = (totalAmount * releasePercentageByMonth[elapsedMonths + 1]) / 100;
 
-        return availableAmount;
+        return availableAmount - withdrawAmount;
     }
 
     /// @notice A function that should transfer the number of tokens available for unfreezing to the user address

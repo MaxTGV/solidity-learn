@@ -2,6 +2,7 @@
 /* tslint:disable */
 /* eslint-disable */
 export * as charitySol from "./Charity.sol";
+export { DAO__factory } from "./DAO__factory";
 export { DexAdapter__factory } from "./DexAdapter__factory";
 export { ERC20__factory } from "./ERC20__factory";
 export { Foundation__factory } from "./Foundation__factory";

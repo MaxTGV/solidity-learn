@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
+import "./ERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
 import "hardhat/console.sol";
 
 contract DAO is AccessControl {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    address public tokenAddress;
+    ERC20 public tokenAddress;
     uint256 public quorumVotes = 0;
-    uint256 public quorumPercentage = 50;
-    uint256 public constant PROPOSALS_PERIOD = 1 days;
+    uint256 public minimalQuorum;
+    uint256 public constant DEFAULT_PROPOSALS_PERIOD = 1 days;
     uint256 public debatingPeriod = 1;
 
     struct Proposal {
@@ -20,18 +21,19 @@ contract DAO is AccessControl {
         uint256 votesFor;
         uint256 votesAgainst;
         bool executed;
+        uint256 proposalEndTime;
     }
 
     struct Deposit {
-        uint256 amount; // Amount of deposited tokens
-        uint256 timestamp; // Timestamp of the deposit
+        uint256 amount;
+        uint256 lockedTime;
     }
 
     Proposal[] public proposals;
 
     mapping(address => Deposit) public deposits;
-    mapping(address => bool) public voted;
-    mapping(uint256 => uint256) public proposalEndTime;
+    mapping(address => mapping(uint256 => bool)) public voted;
+    // mapping(uint256 => uint256) public proposalEndTime;
 
     event ProposalAdded(uint256 indexed proposalId, address recipient, string description);
     event DepositMade(address indexed account, uint256 amount);
@@ -46,6 +48,7 @@ contract DAO is AccessControl {
     error InsufficientVotes();
     error VotingEnded();
     error AlreadyVoted();
+    error ProposalDoesNotExist();
     error ProposalNotEnded();
     error ProposalAlreadyExecuted();
     error CallToProposalFailed();
@@ -54,7 +57,7 @@ contract DAO is AccessControl {
     constructor(address _tokenAddress) {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _setupRole(ADMIN_ROLE, msg.sender);
-        tokenAddress = _tokenAddress;
+        tokenAddress = ERC20(_tokenAddress);
     }
 
     /// @notice The function of creating a proposal (proposal) that will be considered for acceptance by all the participants of the dao
@@ -69,13 +72,12 @@ contract DAO is AccessControl {
             callData: callData,
             votesFor: 0,
             votesAgainst: 0,
-            executed: false
+            executed: false,
+            proposalEndTime: block.timestamp + (debatingPeriod * DEFAULT_PROPOSALS_PERIOD)
         });
 
         proposals.push(newProposal);
-        proposalEndTime[proposals.length - 1] =
-            block.timestamp +
-            (debatingPeriod * PROPOSALS_PERIOD);
+        _calcMinimalQuorum(50);
 
         emit ProposalAdded(proposals.length - 1, recipient, description);
     }
@@ -86,16 +88,19 @@ contract DAO is AccessControl {
             revert ZeroAmountError();
         }
 
-        TransferHelper.safeTransferFrom(tokenAddress, msg.sender, address(this), amount);
+        TransferHelper.safeTransferFrom(address(tokenAddress), msg.sender, address(this), amount);
 
-        deposits[msg.sender] = Deposit(amount, block.timestamp);
+        deposits[msg.sender] = Deposit(deposits[msg.sender].amount += amount, block.timestamp);
 
         emit DepositMade(msg.sender, amount);
     }
 
     /// @notice Function outputting tokens deposited by user to his address
     function withdraw() external {
-        if (voted[msg.sender]) {
+        if (
+            deposits[msg.sender].lockedTime != 0 &&
+            deposits[msg.sender].lockedTime > block.timestamp
+        ) {
             revert VotingInProgress();
         }
 
@@ -106,13 +111,17 @@ contract DAO is AccessControl {
         uint256 amountToWithdraw = deposits[msg.sender].amount;
         deposits[msg.sender].amount = 0;
 
-        TransferHelper.safeTransfer(tokenAddress, msg.sender, amountToWithdraw);
+        TransferHelper.safeTransfer(address(tokenAddress), msg.sender, amountToWithdraw);
 
         emit Withdrawal(msg.sender, amountToWithdraw);
     }
 
     /// @notice A function that allows the user to vote for or against a proposal. proposals
     function vote(uint256 id, bool support) external {
+        if (id >= proposals.length) {
+            revert ProposalDoesNotExist();
+        }
+
         if (deposits[msg.sender].amount == 0) {
             revert InsufficientVotes();
         }
@@ -121,11 +130,15 @@ contract DAO is AccessControl {
             revert VotingEnded();
         }
 
-        if (voted[msg.sender]) {
+        if (voted[msg.sender][id]) {
             revert AlreadyVoted();
         }
 
-        voted[msg.sender] = true;
+        voted[msg.sender][id] = true;
+
+        if (deposits[msg.sender].lockedTime < proposals[id].proposalEndTime) {
+            deposits[msg.sender].lockedTime = proposals[id].proposalEndTime;
+        }
 
         if (support) {
             proposals[id].votesFor += deposits[msg.sender].amount;
@@ -138,11 +151,11 @@ contract DAO is AccessControl {
 
     /// @notice The function that finalizes the vote and executes the call if the vote ended with the adoption of the proposal
     function finishProposal(uint256 id) external {
-        if (block.timestamp < proposalEndTime[id]) {
+        Proposal storage proposal = proposals[id];
+
+        if (block.timestamp < proposal.proposalEndTime) {
             revert ProposalNotEnded();
         }
-
-        Proposal storage proposal = proposals[id];
 
         if (proposal.executed) {
             revert ProposalAlreadyExecuted();
@@ -154,19 +167,21 @@ contract DAO is AccessControl {
             revert InsufficientVotes();
         }
 
-        if ((proposal.votesFor * 100) >= (totalVotes * quorumPercentage)) {
-            (bool success, ) = proposal.recipient.call(proposal.callData);
+        if (totalVotes > minimalQuorum) {
+            if (proposal.votesFor > proposal.votesAgainst) {
+                (bool success, ) = proposal.recipient.call(proposal.callData);
 
-            if (success) {
-                emit ProposalSucceeded();
-            } else {
-                revert CallToProposalFailed();
+                if (success) {
+                    emit ProposalSucceeded();
+                } else {
+                    revert CallToProposalFailed();
+                }
             }
+
+            proposal.executed = true;
+
+            emit ProposalExecuted(id, proposal.recipient, proposal.description);
         }
-
-        proposal.executed = true;
-
-        emit ProposalExecuted(id, proposal.recipient, proposal.description);
     }
 
     /// @notice Function for changing the minimum quorum value
@@ -174,7 +189,8 @@ contract DAO is AccessControl {
         if (newQuorum == 0 || newQuorum > 100) {
             revert InvalidQuorumPercentage();
         }
-        quorumPercentage = newQuorum;
+
+        _calcMinimalQuorum(newQuorum);
     }
 
     /// @notice Function for changing the voice duration value
@@ -186,5 +202,11 @@ contract DAO is AccessControl {
     function setProposalSuccess(uint256 id, bool result) external {
         Proposal storage proposal = proposals[id];
         proposal.executed = result;
+    }
+
+    function _calcMinimalQuorum(uint256 newQuorum) internal {
+        uint256 totalSupply = tokenAddress.totalSupply();
+
+        minimalQuorum = (totalSupply * newQuorum) / 100;
     }
 }

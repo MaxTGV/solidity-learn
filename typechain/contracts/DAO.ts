@@ -31,7 +31,7 @@ export interface DAOInterface extends utils.Interface {
   functions: {
     "ADMIN_ROLE()": FunctionFragment;
     "DEFAULT_ADMIN_ROLE()": FunctionFragment;
-    "PROPOSALS_PERIOD()": FunctionFragment;
+    "DEFAULT_PROPOSALS_PERIOD()": FunctionFragment;
     "addProposal(address,string,bytes)": FunctionFragment;
     "debatingPeriod()": FunctionFragment;
     "deposit(uint256)": FunctionFragment;
@@ -40,9 +40,8 @@ export interface DAOInterface extends utils.Interface {
     "getRoleAdmin(bytes32)": FunctionFragment;
     "grantRole(bytes32,address)": FunctionFragment;
     "hasRole(bytes32,address)": FunctionFragment;
-    "proposalEndTime(uint256)": FunctionFragment;
+    "minimalQuorum()": FunctionFragment;
     "proposals(uint256)": FunctionFragment;
-    "quorumPercentage()": FunctionFragment;
     "quorumVotes()": FunctionFragment;
     "renounceRole(bytes32,address)": FunctionFragment;
     "revokeRole(bytes32,address)": FunctionFragment;
@@ -52,7 +51,7 @@ export interface DAOInterface extends utils.Interface {
     "supportsInterface(bytes4)": FunctionFragment;
     "tokenAddress()": FunctionFragment;
     "vote(uint256,bool)": FunctionFragment;
-    "voted(address)": FunctionFragment;
+    "voted(address,uint256)": FunctionFragment;
     "withdraw()": FunctionFragment;
   };
 
@@ -60,7 +59,7 @@ export interface DAOInterface extends utils.Interface {
     nameOrSignatureOrTopic:
       | "ADMIN_ROLE"
       | "DEFAULT_ADMIN_ROLE"
-      | "PROPOSALS_PERIOD"
+      | "DEFAULT_PROPOSALS_PERIOD"
       | "addProposal"
       | "debatingPeriod"
       | "deposit"
@@ -69,9 +68,8 @@ export interface DAOInterface extends utils.Interface {
       | "getRoleAdmin"
       | "grantRole"
       | "hasRole"
-      | "proposalEndTime"
+      | "minimalQuorum"
       | "proposals"
-      | "quorumPercentage"
       | "quorumVotes"
       | "renounceRole"
       | "revokeRole"
@@ -94,7 +92,7 @@ export interface DAOInterface extends utils.Interface {
     values?: undefined
   ): string;
   encodeFunctionData(
-    functionFragment: "PROPOSALS_PERIOD",
+    functionFragment: "DEFAULT_PROPOSALS_PERIOD",
     values?: undefined
   ): string;
   encodeFunctionData(
@@ -134,16 +132,12 @@ export interface DAOInterface extends utils.Interface {
     values: [PromiseOrValue<BytesLike>, PromiseOrValue<string>]
   ): string;
   encodeFunctionData(
-    functionFragment: "proposalEndTime",
-    values: [PromiseOrValue<BigNumberish>]
+    functionFragment: "minimalQuorum",
+    values?: undefined
   ): string;
   encodeFunctionData(
     functionFragment: "proposals",
     values: [PromiseOrValue<BigNumberish>]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "quorumPercentage",
-    values?: undefined
   ): string;
   encodeFunctionData(
     functionFragment: "quorumVotes",
@@ -183,7 +177,7 @@ export interface DAOInterface extends utils.Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "voted",
-    values: [PromiseOrValue<string>]
+    values: [PromiseOrValue<string>, PromiseOrValue<BigNumberish>]
   ): string;
   encodeFunctionData(functionFragment: "withdraw", values?: undefined): string;
 
@@ -193,7 +187,7 @@ export interface DAOInterface extends utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "PROPOSALS_PERIOD",
+    functionFragment: "DEFAULT_PROPOSALS_PERIOD",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -217,14 +211,10 @@ export interface DAOInterface extends utils.Interface {
   decodeFunctionResult(functionFragment: "grantRole", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "hasRole", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "proposalEndTime",
+    functionFragment: "minimalQuorum",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "proposals", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "quorumPercentage",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(
     functionFragment: "quorumVotes",
     data: BytesLike
@@ -417,7 +407,7 @@ export interface DAO extends BaseContract {
 
     DEFAULT_ADMIN_ROLE(overrides?: CallOverrides): Promise<[string]>;
 
-    PROPOSALS_PERIOD(overrides?: CallOverrides): Promise<[BigNumber]>;
+    DEFAULT_PROPOSALS_PERIOD(overrides?: CallOverrides): Promise<[BigNumber]>;
 
     addProposal(
       recipient: PromiseOrValue<string>,
@@ -437,7 +427,7 @@ export interface DAO extends BaseContract {
       arg0: PromiseOrValue<string>,
       overrides?: CallOverrides
     ): Promise<
-      [BigNumber, BigNumber] & { amount: BigNumber; timestamp: BigNumber }
+      [BigNumber, BigNumber] & { amount: BigNumber; lockedTime: BigNumber }
     >;
 
     finishProposal(
@@ -462,26 +452,22 @@ export interface DAO extends BaseContract {
       overrides?: CallOverrides
     ): Promise<[boolean]>;
 
-    proposalEndTime(
-      arg0: PromiseOrValue<BigNumberish>,
-      overrides?: CallOverrides
-    ): Promise<[BigNumber]>;
+    minimalQuorum(overrides?: CallOverrides): Promise<[BigNumber]>;
 
     proposals(
       arg0: PromiseOrValue<BigNumberish>,
       overrides?: CallOverrides
     ): Promise<
-      [string, string, string, BigNumber, BigNumber, boolean] & {
+      [string, string, string, BigNumber, BigNumber, boolean, BigNumber] & {
         recipient: string;
         description: string;
         callData: string;
         votesFor: BigNumber;
         votesAgainst: BigNumber;
         executed: boolean;
+        proposalEndTime: BigNumber;
       }
     >;
-
-    quorumPercentage(overrides?: CallOverrides): Promise<[BigNumber]>;
 
     quorumVotes(overrides?: CallOverrides): Promise<[BigNumber]>;
 
@@ -528,6 +514,7 @@ export interface DAO extends BaseContract {
 
     voted(
       arg0: PromiseOrValue<string>,
+      arg1: PromiseOrValue<BigNumberish>,
       overrides?: CallOverrides
     ): Promise<[boolean]>;
 
@@ -540,7 +527,7 @@ export interface DAO extends BaseContract {
 
   DEFAULT_ADMIN_ROLE(overrides?: CallOverrides): Promise<string>;
 
-  PROPOSALS_PERIOD(overrides?: CallOverrides): Promise<BigNumber>;
+  DEFAULT_PROPOSALS_PERIOD(overrides?: CallOverrides): Promise<BigNumber>;
 
   addProposal(
     recipient: PromiseOrValue<string>,
@@ -560,7 +547,7 @@ export interface DAO extends BaseContract {
     arg0: PromiseOrValue<string>,
     overrides?: CallOverrides
   ): Promise<
-    [BigNumber, BigNumber] & { amount: BigNumber; timestamp: BigNumber }
+    [BigNumber, BigNumber] & { amount: BigNumber; lockedTime: BigNumber }
   >;
 
   finishProposal(
@@ -585,26 +572,22 @@ export interface DAO extends BaseContract {
     overrides?: CallOverrides
   ): Promise<boolean>;
 
-  proposalEndTime(
-    arg0: PromiseOrValue<BigNumberish>,
-    overrides?: CallOverrides
-  ): Promise<BigNumber>;
+  minimalQuorum(overrides?: CallOverrides): Promise<BigNumber>;
 
   proposals(
     arg0: PromiseOrValue<BigNumberish>,
     overrides?: CallOverrides
   ): Promise<
-    [string, string, string, BigNumber, BigNumber, boolean] & {
+    [string, string, string, BigNumber, BigNumber, boolean, BigNumber] & {
       recipient: string;
       description: string;
       callData: string;
       votesFor: BigNumber;
       votesAgainst: BigNumber;
       executed: boolean;
+      proposalEndTime: BigNumber;
     }
   >;
-
-  quorumPercentage(overrides?: CallOverrides): Promise<BigNumber>;
 
   quorumVotes(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -651,6 +634,7 @@ export interface DAO extends BaseContract {
 
   voted(
     arg0: PromiseOrValue<string>,
+    arg1: PromiseOrValue<BigNumberish>,
     overrides?: CallOverrides
   ): Promise<boolean>;
 
@@ -663,7 +647,7 @@ export interface DAO extends BaseContract {
 
     DEFAULT_ADMIN_ROLE(overrides?: CallOverrides): Promise<string>;
 
-    PROPOSALS_PERIOD(overrides?: CallOverrides): Promise<BigNumber>;
+    DEFAULT_PROPOSALS_PERIOD(overrides?: CallOverrides): Promise<BigNumber>;
 
     addProposal(
       recipient: PromiseOrValue<string>,
@@ -683,7 +667,7 @@ export interface DAO extends BaseContract {
       arg0: PromiseOrValue<string>,
       overrides?: CallOverrides
     ): Promise<
-      [BigNumber, BigNumber] & { amount: BigNumber; timestamp: BigNumber }
+      [BigNumber, BigNumber] & { amount: BigNumber; lockedTime: BigNumber }
     >;
 
     finishProposal(
@@ -708,26 +692,22 @@ export interface DAO extends BaseContract {
       overrides?: CallOverrides
     ): Promise<boolean>;
 
-    proposalEndTime(
-      arg0: PromiseOrValue<BigNumberish>,
-      overrides?: CallOverrides
-    ): Promise<BigNumber>;
+    minimalQuorum(overrides?: CallOverrides): Promise<BigNumber>;
 
     proposals(
       arg0: PromiseOrValue<BigNumberish>,
       overrides?: CallOverrides
     ): Promise<
-      [string, string, string, BigNumber, BigNumber, boolean] & {
+      [string, string, string, BigNumber, BigNumber, boolean, BigNumber] & {
         recipient: string;
         description: string;
         callData: string;
         votesFor: BigNumber;
         votesAgainst: BigNumber;
         executed: boolean;
+        proposalEndTime: BigNumber;
       }
     >;
-
-    quorumPercentage(overrides?: CallOverrides): Promise<BigNumber>;
 
     quorumVotes(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -774,6 +754,7 @@ export interface DAO extends BaseContract {
 
     voted(
       arg0: PromiseOrValue<string>,
+      arg1: PromiseOrValue<BigNumberish>,
       overrides?: CallOverrides
     ): Promise<boolean>;
 
@@ -874,7 +855,7 @@ export interface DAO extends BaseContract {
 
     DEFAULT_ADMIN_ROLE(overrides?: CallOverrides): Promise<BigNumber>;
 
-    PROPOSALS_PERIOD(overrides?: CallOverrides): Promise<BigNumber>;
+    DEFAULT_PROPOSALS_PERIOD(overrides?: CallOverrides): Promise<BigNumber>;
 
     addProposal(
       recipient: PromiseOrValue<string>,
@@ -917,17 +898,12 @@ export interface DAO extends BaseContract {
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
-    proposalEndTime(
-      arg0: PromiseOrValue<BigNumberish>,
-      overrides?: CallOverrides
-    ): Promise<BigNumber>;
+    minimalQuorum(overrides?: CallOverrides): Promise<BigNumber>;
 
     proposals(
       arg0: PromiseOrValue<BigNumberish>,
       overrides?: CallOverrides
     ): Promise<BigNumber>;
-
-    quorumPercentage(overrides?: CallOverrides): Promise<BigNumber>;
 
     quorumVotes(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -974,6 +950,7 @@ export interface DAO extends BaseContract {
 
     voted(
       arg0: PromiseOrValue<string>,
+      arg1: PromiseOrValue<BigNumberish>,
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
@@ -989,7 +966,9 @@ export interface DAO extends BaseContract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
-    PROPOSALS_PERIOD(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    DEFAULT_PROPOSALS_PERIOD(
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
 
     addProposal(
       recipient: PromiseOrValue<string>,
@@ -1032,17 +1011,12 @@ export interface DAO extends BaseContract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
-    proposalEndTime(
-      arg0: PromiseOrValue<BigNumberish>,
-      overrides?: CallOverrides
-    ): Promise<PopulatedTransaction>;
+    minimalQuorum(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     proposals(
       arg0: PromiseOrValue<BigNumberish>,
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
-
-    quorumPercentage(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     quorumVotes(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
@@ -1089,6 +1063,7 @@ export interface DAO extends BaseContract {
 
     voted(
       arg0: PromiseOrValue<string>,
+      arg1: PromiseOrValue<BigNumberish>,
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 

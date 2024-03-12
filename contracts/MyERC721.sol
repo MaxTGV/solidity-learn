@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.18;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
@@ -204,5 +204,9 @@ contract MyERC721 is IERC721, IERC721Metadata {
         emit TransferEvent(from, to, tokenId);
     }
 
-    function supportsInterface(bytes4 interfaceId) external view override returns (bool) {}
+    function supportsInterface(bytes4 interfaceId) external pure override returns (bool) {
+        return
+            interfaceId == type(IERC721).interfaceId ||
+            interfaceId == type(IERC721Metadata).interfaceId;
+    }
 }

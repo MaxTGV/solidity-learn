@@ -251,8 +251,8 @@ describe("ERC1155 unit tests", () => {
     });
 
     describe("_doSafeTransferAcceptanceCheck", () => {
-        it("should revert if the recipient rejects the transfer", async () => {
-            const { erc1155Contract, deployer, user } = await deployContractFixture();
+        it("should revert if the recipient is not an ERC1155Receiver implementer", async () => {
+            const { erc1155Contract, deployer } = await deployContractFixture();
             const tokenId = 1;
             const amount = 100;
             await erc1155Contract.connect(deployer).mint(deployer.address, tokenId, amount);
@@ -264,26 +264,9 @@ describe("ERC1155 unit tests", () => {
             await expect(
                 erc1155Contract
                     .connect(deployer)
-                    .safeTransferFrom(user.address, rejectingInstance.address, tokenId, amount, [])
-            ).to.be.revertedWithCustomError(erc1155Contract, "TransferRejectedByRecipient");
-        });
-
-        it("should revert if the recipient is not an ERC1155Receiver implementer", async () => {
-            const { erc1155Contract, deployer, user } = await deployContractFixture();
-            const tokenId = 1;
-            const amount = 100;
-            await erc1155Contract.connect(deployer).mint(deployer.address, tokenId, amount);
-
-            // Create a contract that is not an ERC1155Receiver implementer
-            const nonImplementerContract = await ethers.getContractFactory("Mock");
-            const nonImplementerInstance = await nonImplementerContract.deploy();
-
-            await expect(
-                erc1155Contract
-                    .connect(deployer)
                     .safeTransferFrom(
-                        user.address,
-                        nonImplementerInstance.address,
+                        deployer.address,
+                        rejectingInstance.address,
                         tokenId,
                         amount,
                         []
@@ -293,37 +276,57 @@ describe("ERC1155 unit tests", () => {
                 "TransferNonERC1155ReceiverImplementer"
             );
         });
+
+        it("should revert if the recipient rejects the transfer", async () => {
+            const { erc1155Contract, deployer, user } = await deployContractFixture();
+            const tokenId = 1;
+            const amount = 100;
+            await erc1155Contract.connect(deployer).mint(deployer.address, tokenId, amount);
+
+            const nonImplementerContract = await ethers.getContractFactory("MockERC1155Receiver");
+            const nonImplementerInstance = await nonImplementerContract.deploy();
+
+            await expect(
+                erc1155Contract
+                    .connect(deployer)
+                    .safeTransferFrom(
+                        deployer.address,
+                        nonImplementerInstance.address,
+                        tokenId,
+                        amount,
+                        []
+                    )
+            ).to.be.revertedWithCustomError(erc1155Contract, "TransferRejectedByRecipient");
+        });
     });
 
     describe("uri", () => {
         it("should return the correct URI for the specified token ID", async () => {
             const { erc1155Contract } = await deployContractFixture();
-            const tokenId = 1;
-            const expectedURI = "https://myapi.com/token/0";
-            expect(await erc1155Contract.uri(tokenId)).to.equal(expectedURI);
+
+            const expectedURI = "https://myapi.com/token/1";
+            expect(await erc1155Contract.uri(1)).to.equal(expectedURI);
         });
     });
 
     describe("supportsInterface", () => {
-        it("should return true for supported interfaces", async () => {
+        it("should return true for IERC1155 interface", async () => {
             const { erc1155Contract } = await deployContractFixture();
-            const IERC1155InterfaceId = ethers.utils.id("IERC1155");
-            const IERC1155MetadataURIInterfaceId = ethers.utils.id("IERC1155MetadataURI");
 
-            expect(await erc1155Contract.supportsInterface(IERC1155InterfaceId)).to.be.true;
-            expect(await erc1155Contract.supportsInterface(IERC1155MetadataURIInterfaceId)).to.be
-                .true;
+            const interfaceId = "0xd9b67a26";
+            expect(await erc1155Contract.supportsInterface(interfaceId)).to.be.true;
         });
 
-        it("should return false for unsupported interfaces", async () => {
+        it("should return true for IERC1155MetadataURI interface", async () => {
             const { erc1155Contract } = await deployContractFixture();
+            const interfaceId = "0x0e89341c";
+            expect(await erc1155Contract.supportsInterface(interfaceId)).to.be.true;
+        });
 
-            // const unsupportedInterfaceId = ethers.utils.id("UnsupportedInterface");
-
-            // expect(await myERC1155.supportsInterface(unsupportedInterfaceId)).to.be.false;
-            const unsupportedInterfaceId = "0x12345678"; // Non-existent interface ID
-
-            expect(await erc1155Contract.supportsInterface(unsupportedInterfaceId)).to.be.false;
+        it("should return false for unknown interface", async () => {
+            const { erc1155Contract } = await deployContractFixture();
+            const interfaceId = "0x12345678"; // Random interface ID
+            expect(await erc1155Contract.supportsInterface(interfaceId)).to.be.false;
         });
     });
 });

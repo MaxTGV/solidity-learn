@@ -164,24 +164,31 @@ describe("ERC721 unit tests", () => {
         });
     });
 
-    // describe("safeTransferFrom", () => {
-    //     it("should revert if caller is not authorized to transfer", async () => {
-    //         const { erc721Contract, deployer, owner, user } = await deployContractFixture();
-    //         await erc721Contract.mint(deployer.address, 1);
-    //         await erc721Contract.mint(owner.address, 2);
-    //         await erc721Contract.approve(user.address, 2);
-    //         await expect(
-    //             erc721Contract.safeTransferFrom(owner.address, user.address, 1)
-    //         ).to.be.revertedWithCustomError(erc721Contract, "TransferCallerNotAuthorized");
-    //     });
+    describe("safeTransferFrom", () => {
+        it("should revert if caller is not authorized to transfer", async () => {
+            const { erc721Contract, deployer, owner, user } = await deployContractFixture();
+            await erc721Contract.mint(deployer.address, 1);
+            await erc721Contract.mint(owner.address, 2);
+            await erc721Contract.connect(owner).approve(user.address, 2);
 
-    //     it("should transfer token from one address to another", async () => {
-    //         const { erc721Contract, deployer, user } = await deployContractFixture();
-    //         await erc721Contract.mint(deployer.address, 1);
-    //         await erc721Contract.safeTransferFrom(deployer.address, user.address, 1);
-    //         expect(await erc721Contract.ownerOf(1)).to.equal(user.address);
-    //     });
-    // });
+            await expect(
+                erc721Contract
+                    .connect(deployer)
+                    ["safeTransferFrom(address,address,uint256)"](deployer.address, user.address, 2)
+            ).to.be.revertedWithCustomError(erc721Contract, "TransferCallerNotAuthorized");
+        });
+
+        it("should transfer token from one address to another", async () => {
+            const { erc721Contract, deployer, user } = await deployContractFixture();
+            await erc721Contract.mint(deployer.address, 1);
+            erc721Contract["safeTransferFrom(address,address,uint256)"](
+                deployer.address,
+                user.address,
+                1
+            );
+            expect(await erc721Contract.ownerOf(1)).to.equal(user.address);
+        });
+    });
 
     describe("burn", () => {
         it("should revert if caller is not the token owner", async () => {
@@ -215,6 +222,70 @@ describe("ERC721 unit tests", () => {
             const { erc721Contract, deployer, user } = await deployContractFixture();
             await erc721Contract.mint(deployer.address, 1);
             expect(await erc721Contract.ownerOf(1)).to.equal(deployer.address);
+        });
+    });
+
+    describe("_doSafeTransferAcceptanceCheck", () => {
+        it("should revert if the recipient is not an ERC721Receiver implementer", async () => {
+            const { erc721Contract, deployer } = await deployContractFixture();
+            const tokenId = 1;
+            await erc721Contract.connect(deployer).mint(deployer.address, tokenId);
+
+            // Create a contract that rejects the transfer
+            const rejectingContract = await ethers.getContractFactory("Mock");
+            const rejectingInstance = await rejectingContract.deploy();
+
+            await expect(
+                erc721Contract
+                    .connect(deployer)
+                    ["safeTransferFrom(address,address,uint256)"](
+                        deployer.address,
+                        rejectingInstance.address,
+                        tokenId
+                    )
+            ).to.be.revertedWithCustomError(erc721Contract, "TransferNonERC721ReceiverImplementer");
+        });
+
+        it("should revert if the recipient rejects the transfer", async () => {
+            const { erc721Contract, deployer } = await deployContractFixture();
+            const tokenId = 1;
+            await erc721Contract.connect(deployer).mint(deployer.address, tokenId);
+
+            const nonImplementerContract = await ethers.getContractFactory("MockERC721Receiver");
+            const nonImplementerInstance = await nonImplementerContract.deploy();
+
+            await expect(
+                erc721Contract
+                    .connect(deployer)
+                    ["safeTransferFrom(address,address,uint256)"](
+                        deployer.address,
+                        nonImplementerInstance.address,
+                        tokenId
+                    )
+            ).to.be.revertedWithCustomError(erc721Contract, "TransferRejectedByRecipient");
+        });
+    });
+
+    describe("supportsInterface", () => {
+        it("supports IERC721 interface", async function () {
+            const { erc721Contract } = await deployContractFixture();
+
+            const interfaceId1 = "0x80ac58cd";
+            expect(await erc721Contract.supportsInterface(interfaceId1)).to.equal(true);
+        });
+
+        it("supports IERC721MetadataURI interface", async function () {
+            const { erc721Contract } = await deployContractFixture();
+
+            const interfaceId1 = '0x5b5e139f';
+            expect(await erc721Contract.supportsInterface(interfaceId1)).to.equal(true);
+        });
+
+        it("supports unknown interface", async function () {
+            const { erc721Contract } = await deployContractFixture();
+
+            const interfaceId1 = "0x12345678";
+            expect(await erc721Contract.supportsInterface(interfaceId1)).to.equal(false);
         });
     });
 });

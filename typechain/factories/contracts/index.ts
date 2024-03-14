@@ -7,6 +7,8 @@ export { DexAdapter__factory } from "./DexAdapter__factory";
 export { ERC20__factory } from "./ERC20__factory";
 export { Foundation__factory } from "./Foundation__factory";
 export { FundManager__factory } from "./FundManager__factory";
+export { MockERC1155Receiver__factory } from "./MockERC1155Receiver__factory";
+export { MockERC721Receiver__factory } from "./MockERC721Receiver__factory";
 export { MyERC1155__factory } from "./MyERC1155__factory";
 export { MyERC721__factory } from "./MyERC721__factory";
 export { Staking__factory } from "./Staking__factory";

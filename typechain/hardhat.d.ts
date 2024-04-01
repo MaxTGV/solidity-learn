@@ -141,6 +141,10 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.MyERC721__factory>;
     getContractFactory(
+      name: "NFTMarketplace",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.NFTMarketplace__factory>;
+    getContractFactory(
       name: "Staking",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.Staking__factory>;
@@ -309,6 +313,11 @@ declare module "hardhat/types/runtime" {
       address: string,
       signer?: ethers.Signer
     ): Promise<Contracts.MyERC721>;
+    getContractAt(
+      name: "NFTMarketplace",
+      address: string,
+      signer?: ethers.Signer
+    ): Promise<Contracts.NFTMarketplace>;
     getContractAt(
       name: "Staking",
       address: string,

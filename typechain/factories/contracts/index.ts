@@ -11,5 +11,6 @@ export { MockERC1155Receiver__factory } from "./MockERC1155Receiver__factory";
 export { MockERC721Receiver__factory } from "./MockERC721Receiver__factory";
 export { MyERC1155__factory } from "./MyERC1155__factory";
 export { MyERC721__factory } from "./MyERC721__factory";
+export { NFTMarketplace__factory } from "./NFTMarketplace__factory";
 export { Staking__factory } from "./Staking__factory";
 export { Vesting__factory } from "./Vesting__factory";

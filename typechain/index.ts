@@ -72,6 +72,8 @@ export type { MyERC1155 } from "./contracts/MyERC1155";
 export { MyERC1155__factory } from "./factories/contracts/MyERC1155__factory";
 export type { MyERC721 } from "./contracts/MyERC721";
 export { MyERC721__factory } from "./factories/contracts/MyERC721__factory";
+export type { NFTMarketplace } from "./contracts/NFTMarketplace";
+export { NFTMarketplace__factory } from "./factories/contracts/NFTMarketplace__factory";
 export type { Staking } from "./contracts/Staking";
 export { Staking__factory } from "./factories/contracts/Staking__factory";
 export type { Vesting } from "./contracts/Vesting";

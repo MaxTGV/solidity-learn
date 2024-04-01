@@ -12,5 +12,6 @@ export type { MockERC1155Receiver } from "./MockERC1155Receiver";
 export type { MockERC721Receiver } from "./MockERC721Receiver";
 export type { MyERC1155 } from "./MyERC1155";
 export type { MyERC721 } from "./MyERC721";
+export type { NFTMarketplace } from "./NFTMarketplace";
 export type { Staking } from "./Staking";
 export type { Vesting } from "./Vesting";

@@ -66,6 +66,8 @@ export type { FundManager } from "./contracts/FundManager";
 export { FundManager__factory } from "./factories/contracts/FundManager__factory";
 export type { MockERC1155Receiver } from "./contracts/MockERC1155Receiver";
 export { MockERC1155Receiver__factory } from "./factories/contracts/MockERC1155Receiver__factory";
+export type { MockERC20 } from "./contracts/MockERC20";
+export { MockERC20__factory } from "./factories/contracts/MockERC20__factory";
 export type { MockERC721Receiver } from "./contracts/MockERC721Receiver";
 export { MockERC721Receiver__factory } from "./factories/contracts/MockERC721Receiver__factory";
 export type { MyERC1155 } from "./contracts/MyERC1155";

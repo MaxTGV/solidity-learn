@@ -4,6 +4,7 @@ pragma solidity ^0.8.18;
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
+import "hardhat/console.sol";
 
 contract MyERC721 is IERC721, IERC721Metadata {
     using Strings for uint256;
@@ -78,6 +79,7 @@ contract MyERC721 is IERC721, IERC721Metadata {
     function approve(address to, uint256 tokenId) public virtual override {
         address owner = _owners[tokenId];
         if (owner != msg.sender) {
+            console.log(owner, msg.sender);
             revert NotTokenOwner();
         }
 
@@ -208,7 +210,6 @@ contract MyERC721 is IERC721, IERC721Metadata {
             revert TransferToZeroAddress();
         }
 
-        approve(address(0), tokenId);
         _balances[from] -= 1;
         _balances[to] += 1;
         _owners[tokenId] = to;

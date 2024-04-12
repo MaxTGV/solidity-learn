@@ -6,6 +6,8 @@ describe("NFT marketplace unit tests", () => {
         const [deployer, owner, user] = await ethers.getSigners();
 
         const NFTMarketplaceContractFactory = await ethers.getContractFactory("NFTMarketplace");
+        const MockERC20ContractFactory = await ethers.getContractFactory("MockERC20");
+        const mockERC20Contract = await MockERC20ContractFactory.connect(deployer).deploy();
 
         const ERC721ContractFactory = await ethers.getContractFactory("MyERC721");
         const erc721Contract = await ERC721ContractFactory.connect(deployer).deploy(
@@ -18,11 +20,19 @@ describe("NFT marketplace unit tests", () => {
             .connect(deployer)
             .deploy("Burlan", "BRL", 18, 1000, user.address);
 
-        const nfrMarketplaceContract = await NFTMarketplaceContractFactory.connect(
-            deployer
-        ).deploy();
+        const nfrMarketplaceContract = await NFTMarketplaceContractFactory.connect(deployer).deploy(
+            erc721Contract.address
+        );
 
-        return { owner, user, deployer, nfrMarketplaceContract, erc721Contract, tokenByERC20 };
+        return {
+            owner,
+            user,
+            deployer,
+            nfrMarketplaceContract,
+            erc721Contract,
+            tokenByERC20,
+            mockERC20Contract,
+        };
     };
 
     describe("createItem", () => {
@@ -44,14 +54,15 @@ describe("NFT marketplace unit tests", () => {
 
     describe("listItem", () => {
         it("Should list an NFT for sale", async () => {
-            const { nfrMarketplaceContract, erc721Contract } = await deployContractFixture();
+            const { nfrMarketplaceContract, erc721Contract, deployer } =
+                await deployContractFixture();
             const tokenUri = "https://example.com/token/1";
             await nfrMarketplaceContract.createItem(tokenUri);
             const price = ethers.utils.parseEther("1");
 
             await expect(nfrMarketplaceContract.listItem(1, price, erc721Contract.address))
                 .to.emit(nfrMarketplaceContract, "TokenListed")
-                .withArgs(1, price, erc721Contract.address);
+                .withArgs(1, price, erc721Contract.address, deployer.address);
         });
 
         it("Should revert if called by non-owner", async () => {
@@ -100,6 +111,24 @@ describe("NFT marketplace unit tests", () => {
             ).to.be.revertedWithCustomError(nfrMarketplaceContract, "TokenNotForSale");
         });
 
+        it("Should revert if called by non-token owner when buy token", async () => {
+            const { nfrMarketplaceContract, erc721Contract, tokenByERC20, deployer, user } =
+                await deployContractFixture();
+
+            const tokenUri = "https://example.com/token/1";
+            const price = 1000;
+
+            await nfrMarketplaceContract.connect(deployer).createItem(tokenUri);
+            await tokenByERC20.connect(user).approve(nfrMarketplaceContract.address, price);
+
+            await nfrMarketplaceContract.connect(deployer).listItem(1, price, tokenByERC20.address);
+            await erc721Contract.connect(deployer).transferFrom(deployer.address, user.address, 1);
+
+            await expect(
+                nfrMarketplaceContract.connect(user).buyItem(1)
+            ).to.be.revertedWithCustomError(nfrMarketplaceContract, "NotTokenOwner");
+        });
+
         it("Should revert if not enough ETH sent for purchase", async () => {
             const { nfrMarketplaceContract, user } = await deployContractFixture();
 
@@ -115,16 +144,15 @@ describe("NFT marketplace unit tests", () => {
         });
 
         it("Should revert if not enough allowance", async () => {
-            const { nfrMarketplaceContract, tokenByERC20, deployer, user } =
+            const { nfrMarketplaceContract, erc721Contract, tokenByERC20, deployer, user } =
                 await deployContractFixture();
 
             const tokenUri = "https://example.com/token/1";
-            await nfrMarketplaceContract.connect(deployer).createItem(tokenUri);
             const price = 1000;
 
+            await nfrMarketplaceContract.connect(deployer).createItem(tokenUri);
             await tokenByERC20.connect(user).approve(nfrMarketplaceContract.address, price - 1);
-            await nfrMarketplaceContract.connect(deployer).setApprovalForAll(user.address, true);
-
+            await erc721Contract.connect(deployer).setApprovalForAll(user.address, true);
             await nfrMarketplaceContract.connect(deployer).listItem(1, price, tokenByERC20.address);
 
             await expect(
@@ -133,26 +161,6 @@ describe("NFT marketplace unit tests", () => {
         });
 
         it("Should revert if insufficient ether", async () => {
-            const { nfrMarketplaceContract, tokenByERC20, deployer, user } =
-                await deployContractFixture();
-
-            const tokenUri = "https://example.com/token/1";
-            await nfrMarketplaceContract.createItem(tokenUri);
-            const price = 1000;
-            const tokenAddress = ethers.constants.AddressZero;
-
-            await nfrMarketplaceContract.connect(deployer).listItem(1, price, tokenAddress);
-
-            await tokenByERC20.connect(user).approve(nfrMarketplaceContract.address, price);
-            await nfrMarketplaceContract.connect(deployer).setApprovalForAll(user.address, true);
-            await tokenByERC20.connect(user).transfer(nfrMarketplaceContract.address, price);
-
-            await expect(
-                nfrMarketplaceContract.connect(user).buyItem(1)
-            ).to.be.revertedWithCustomError(nfrMarketplaceContract, "InsufficientEtherSent");
-        });
-
-        it("Should allow a buyer to purchase an NFT with ETH", async () => {
             const { nfrMarketplaceContract, erc721Contract, tokenByERC20, deployer, user } =
                 await deployContractFixture();
 
@@ -162,54 +170,84 @@ describe("NFT marketplace unit tests", () => {
             const tokenAddress = ethers.constants.AddressZero;
 
             await nfrMarketplaceContract.connect(deployer).listItem(1, price, tokenAddress);
-            await nfrMarketplaceContract.connect(deployer).setApprovalForAll(user.address, true);
 
-            await nfrMarketplaceContract
-                .connect(user)
-                .deposit({ value: ethers.utils.parseEther("1") });
+            await tokenByERC20.connect(user).approve(nfrMarketplaceContract.address, price);
+            await erc721Contract.connect(deployer).setApprovalForAll(user.address, true);
+            await tokenByERC20.connect(user).transfer(nfrMarketplaceContract.address, price);
 
-            await nfrMarketplaceContract.connect(user).buyItem(1);
-
-            expect(await nfrMarketplaceContract.ownerOf(1)).to.equal(user.address);
+            await expect(
+                nfrMarketplaceContract.connect(user).buyItem(1)
+            ).to.be.revertedWithCustomError(nfrMarketplaceContract, "InsufficientEtherSent");
         });
 
-        it("Should allow a buyer to purchase an NFT with ERC20 token", async () => {
-            const { nfrMarketplaceContract, tokenByERC20, deployer, user } =
+        it("Should allow a buyer to purchase an NFT with ETH", async () => {
+            const { nfrMarketplaceContract, erc721Contract, deployer, user } =
                 await deployContractFixture();
 
             const tokenUri = "https://example.com/token/1";
+            const price = 1000;
+            const tokenAddress = ethers.constants.AddressZero;
+
             await nfrMarketplaceContract.connect(deployer).createItem(tokenUri);
+
+            await nfrMarketplaceContract.connect(deployer).listItem(1, price, tokenAddress);
+            await erc721Contract
+                .connect(deployer)
+                .setApprovalForAll(nfrMarketplaceContract.address, true);
+
+            await nfrMarketplaceContract.connect(user).buyItem(1, { value: 1000 });
+
+            expect(await erc721Contract.ownerOf(1)).to.equal(user.address);
+        });
+
+        it("Should allow a buyer to purchase an NFT with ERC20 token", async () => {
+            const { nfrMarketplaceContract, erc721Contract, tokenByERC20, deployer, user } =
+                await deployContractFixture();
+
+            const tokenUri = "https://example.com/token/1";
             const price = 1000;
 
+            await nfrMarketplaceContract.connect(deployer).createItem(tokenUri);
             await tokenByERC20.connect(user).approve(nfrMarketplaceContract.address, price);
-            await nfrMarketplaceContract.connect(deployer).setApprovalForAll(user.address, true);
-
+            await erc721Contract
+                .connect(deployer)
+                .setApprovalForAll(nfrMarketplaceContract.address, true);
             await nfrMarketplaceContract.connect(deployer).listItem(1, price, tokenByERC20.address);
 
             const tx = await nfrMarketplaceContract.connect(user).buyItem(1);
             await tx.wait();
 
-            expect(await nfrMarketplaceContract.ownerOf(1)).to.equal(user.address);
+            expect(await erc721Contract.ownerOf(1)).to.equal(user.address);
             expect(await tokenByERC20.balanceOf(user.address)).to.equal(0);
         });
 
-        // it("Should revert if ERC20 transfer fails", async () => {
-        //     const { nfrMarketplaceContract, tokenByERC20, deployer, user } =
-        //         await deployContractFixture();
+        it("Should revert if ERC20 transfer fails", async () => {
+            const {
+                nfrMarketplaceContract,
+                erc721Contract,
+                tokenByERC20,
+                mockERC20Contract,
+                deployer,
+                user,
+            } = await deployContractFixture();
 
-        //     const tokenUri = "https://example.com/token/1";
-        //     await nfrMarketplaceContract.connect(deployer).createItem(tokenUri);
-        //     const price = 1000;
+            const tokenUri = "https://example.com/token/1";
+            const price = 1000;
 
-        //     await tokenByERC20.connect(user).approve(nfrMarketplaceContract.address, price);
-        //     await nfrMarketplaceContract.connect(deployer).setApprovalForAll(user.address, true);
+            await nfrMarketplaceContract.connect(deployer).createItem(tokenUri);
+            await tokenByERC20.connect(user).approve(nfrMarketplaceContract.address, price);
+            await erc721Contract
+                .connect(deployer)
+                .setApprovalForAll(nfrMarketplaceContract.address, true);
 
-        //     await nfrMarketplaceContract.connect(deployer).listItem(1, price, "1x1111");
+            await nfrMarketplaceContract
+                .connect(deployer)
+                .listItem(1, price, mockERC20Contract.address);
 
-        //     await expect(
-        //         nfrMarketplaceContract.connect(user).buyItem(1)
-        //     ).to.be.revertedWithCustomError(nfrMarketplaceContract, "TransferFailed");
-        // });
+            await expect(
+                nfrMarketplaceContract.connect(user).buyItem(1)
+            ).to.be.revertedWithCustomError(nfrMarketplaceContract, "TokenTransferFailed");
+        });
     });
 
     describe("cancel", () => {
@@ -242,29 +280,6 @@ describe("NFT marketplace unit tests", () => {
             await expect(
                 nfrMarketplaceContract.connect(user).cancel(1)
             ).to.be.revertedWithCustomError(nfrMarketplaceContract, "NotTokenOwner");
-        });
-    });
-
-    describe("supportsInterface", () => {
-        it("supports IERC721 interface", async function () {
-            const { nfrMarketplaceContract } = await deployContractFixture();
-
-            const interfaceId1 = "0x80ac58cd";
-            expect(await nfrMarketplaceContract.supportsInterface(interfaceId1)).to.equal(true);
-        });
-
-        it("supports IERC721MetadataURI interface", async function () {
-            const { nfrMarketplaceContract } = await deployContractFixture();
-
-            const interfaceId1 = "0x5b5e139f";
-            expect(await nfrMarketplaceContract.supportsInterface(interfaceId1)).to.equal(true);
-        });
-
-        it("supports unknown interface", async function () {
-            const { nfrMarketplaceContract } = await deployContractFixture();
-
-            const interfaceId1 = "0x12345678";
-            expect(await nfrMarketplaceContract.supportsInterface(interfaceId1)).to.equal(false);
         });
     });
 });

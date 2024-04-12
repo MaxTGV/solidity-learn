@@ -9,6 +9,7 @@ export type { ERC20 } from "./ERC20";
 export type { Foundation } from "./Foundation";
 export type { FundManager } from "./FundManager";
 export type { MockERC1155Receiver } from "./MockERC1155Receiver";
+export type { MockERC20 } from "./MockERC20";
 export type { MockERC721Receiver } from "./MockERC721Receiver";
 export type { MyERC1155 } from "./MyERC1155";
 export type { MyERC721 } from "./MyERC721";
